@@ -40,6 +40,13 @@ Other settings (interval, pins, buffer size, timeouts) are in `config.h`.
 ### Getting the root certificate
 The device verifies the server's TLS certificate, so it needs the **root** certificate that signs your Supabase endpoint. Do not use the leaf (server) certificate – it changes every few months.
 
+**Easiest (Windows, Mac or Linux, needs Node.js):** in the project folder run
+```
+npm run get:rootca -- <project-ref>.supabase.co
+```
+It prints the root certificate and saves it as `root-ca.pem`. Paste everything from `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----` into `ROOT_CA` in `secrets.h`. If it says it cannot find the root, you are probably on a network that inspects HTTPS traffic – try another network.
+
+**Manual alternative (OpenSSL):**
 ```bash
 openssl s_client -showcerts -servername <ref>.supabase.co -connect <ref>.supabase.co:443 </dev/null 2>/dev/null
 ```

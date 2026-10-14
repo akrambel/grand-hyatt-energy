@@ -10,7 +10,7 @@ import { ENV, logoUrl } from '../config/env.ts';
 import { NAV } from './nav.ts';
 import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
 import { clsx } from '../lib/format.ts';
-import { fiscalLabel, timeAgo } from '../lib/dates.ts';
+import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
 
 export function Logo() {
   const [failed, setFailed] = useState(false);
@@ -98,8 +98,11 @@ export function Layout() {
     return [...m.entries()];
   }, [admin]);
 
-  const thisFy = new Date().getFullYear();
-  const fyOptions = Array.from({ length: 6 }, (_, i) => thisFy + 1 - i);
+  // Reporting years start with FY2026-27 (first year of the system) and end with the current fiscal year
+  // (a fiscal year starts on 1 October). The next year appears automatically when it begins.
+  const FIRST_FY = 2026;
+  const thisFy = fiscalYearOf(localToday(settings.timezone), settings.fiscalStartMonth);
+  const fyOptions = Array.from({ length: Math.max(1, thisFy - FIRST_FY + 1) }, (_, i) => thisFy - i);
   if (!fyOptions.includes(fy)) fyOptions.push(fy);
 
   return (

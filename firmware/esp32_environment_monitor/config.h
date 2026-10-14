@@ -3,10 +3,19 @@
 
 #define FW_VERSION "1.0.0"
 
-// ---- I2C wiring (ESP32 DevKit V1 default pins) ----
-#define PIN_SDA 21
-#define PIN_SCL 22
-#define STATUS_LED_PIN 2          // on-board LED; set to -1 to disable
+// ---- I2C wiring ----
+// Classic ESP32 (DevKit V1): SDA = GPIO21, SCL = GPIO22.
+// ESP32-C3: that chip has no GPIO22 (using it crashes the board), so SDA = GPIO8, SCL = GPIO9
+// (the standard I2C pins of most ESP32-C3 boards). Change the numbers here if you wired other pins.
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  #define PIN_SDA 8
+  #define PIN_SCL 9
+  #define STATUS_LED_PIN -1       // LED pin differs between C3 boards; disabled for safety
+#else
+  #define PIN_SDA 21
+  #define PIN_SCL 22
+  #define STATUS_LED_PIN 2        // on-board LED; set to -1 to disable
+#endif
 
 // ---- Sensor addresses ----
 #define BMP280_ADDR_PRIMARY   0x76   // SDO -> GND

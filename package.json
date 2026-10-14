@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:db": "bash tests/db/run.sh",
+    "get:rootca": "node scripts/get-root-ca.mjs",
     "seed:users": "node --env-file=.env.seed scripts/seed-users.mjs",
     "verify": "npm run typecheck && npm test && npm run build"
   },
