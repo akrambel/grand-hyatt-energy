@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["tests/**/*.ts", "supabase/functions/**/handler.ts", "supabase/functions/**/logic.ts", "supabase/functions/_shared/*.ts", "src/lib/**/*.ts"],
+  "exclude": ["src/lib/supabase.ts", "src/lib/pdf.ts", "src/lib/exportXlsx.ts", "src/lib/excelAdapter.ts", "src/lib/chartImage.ts"]
+}

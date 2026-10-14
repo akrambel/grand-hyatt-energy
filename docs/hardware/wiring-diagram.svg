@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="Arial, Helvetica, sans-serif" role="img" aria-label="Wiring diagram: ESP32 DevKit V1 to AHT20 and BMP280 on one I2C bus">
+<rect width="960" height="520" fill="#ffffff"/>
+<text x="480" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#023c39">ESP32 DevKit V1 – AHT20 + BMP280 on one I2C bus (3.3 V)</text>
+<text x="480" y="58" text-anchor="middle" font-size="13" fill="#bd2137">Use 3.3 V only – never 5 V. Both sensors share the same four wires.</text>
+<line x1="300" y1="190" x2="800" y2="190" stroke="#bd2137" stroke-width="5" stroke-linecap="round"/>
+<line x1="300" y1="250" x2="800" y2="250" stroke="#222222" stroke-width="5" stroke-linecap="round"/>
+<line x1="300" y1="310" x2="800" y2="310" stroke="#2b6cb0" stroke-width="5" stroke-linecap="round"/>
+<line x1="300" y1="370" x2="800" y2="370" stroke="#c98a0b" stroke-width="5" stroke-linecap="round"/>
+<rect x="70" y="90" width="230" height="380" rx="14" fill="#f3efe0" stroke="#023c39" stroke-width="3"/>
+<text x="185" y="124" text-anchor="middle" font-size="16" font-weight="bold" fill="#023c39">ESP32 DevKit V1</text>
+<text x="185" y="144" text-anchor="middle" font-size="12" fill="#555">30-pin board</text>
+<circle cx="300" cy="190" r="7" fill="#bd2137"/><text x="286" y="195" text-anchor="end" font-size="14" fill="#111">3V3</text>
+<circle cx="300" cy="250" r="7" fill="#222222"/><text x="286" y="255" text-anchor="end" font-size="14" fill="#111">GND</text>
+<circle cx="300" cy="310" r="7" fill="#2b6cb0"/><text x="286" y="315" text-anchor="end" font-size="14" fill="#111">GPIO 21 (SDA)</text>
+<circle cx="300" cy="370" r="7" fill="#c98a0b"/><text x="286" y="375" text-anchor="end" font-size="14" fill="#111">GPIO 22 (SCL)</text>
+<rect x="440" y="130" width="170" height="290" rx="12" fill="#eef6f5" stroke="#0b5b56" stroke-width="3"/>
+<text x="525" y="158" text-anchor="middle" font-size="15" font-weight="bold" fill="#0b5b56">AHT20</text><text x="525" y="176" text-anchor="middle" font-size="11" fill="#555">temp + humidity · 0x38</text>
+<circle cx="440" cy="190" r="6" fill="#bd2137"/><text x="456" y="195" font-size="14" fill="#111">VIN</text>
+<circle cx="440" cy="250" r="6" fill="#222222"/><text x="456" y="255" font-size="14" fill="#111">GND</text>
+<circle cx="440" cy="310" r="6" fill="#2b6cb0"/><text x="456" y="315" font-size="14" fill="#111">SDA</text>
+<circle cx="440" cy="370" r="6" fill="#c98a0b"/><text x="456" y="375" font-size="14" fill="#111">SCL</text>
+<rect x="690" y="130" width="170" height="290" rx="12" fill="#fdf1f3" stroke="#bd2137" stroke-width="3"/>
+<text x="775" y="158" text-anchor="middle" font-size="15" font-weight="bold" fill="#bd2137">BMP280</text><text x="775" y="176" text-anchor="middle" font-size="11" fill="#555">pressure + temp · 0x76</text>
+<circle cx="690" cy="190" r="6" fill="#bd2137"/><text x="706" y="195" font-size="14" fill="#111">VCC</text>
+<circle cx="690" cy="250" r="6" fill="#222222"/><text x="706" y="255" font-size="14" fill="#111">GND</text>
+<circle cx="690" cy="310" r="6" fill="#2b6cb0"/><text x="706" y="315" font-size="14" fill="#111">SDA</text>
+<circle cx="690" cy="370" r="6" fill="#c98a0b"/><text x="706" y="375" font-size="14" fill="#111">SCL</text>
+<text x="775" y="400" text-anchor="middle" font-size="12" fill="#555">SDO → GND (address 0x76)</text>
+<text x="480" y="500" text-anchor="middle" font-size="12" fill="#555">Colours: red = 3V3, black = GND, blue = SDA (GPIO 21), amber = SCL (GPIO 22). Wires continue from sensor to sensor (parallel bus).</text>
+</svg>

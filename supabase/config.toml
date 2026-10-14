@@ -1,0 +1,25 @@
+# Supabase CLI configuration (used by `supabase start`, `supabase db push`, `supabase functions deploy`).
+project_id = "ghrs-energy-dashboard"
+
+[api]
+enabled = true
+
+[auth]
+enabled = true
+# Accounts are created by an administrator only – nobody can register themselves.
+enable_signup = false
+site_url = "http://localhost:5173"
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[functions.ingest]
+# Devices authenticate with their own API key (x-device-key), not with a user JWT.
+verify_jwt = false
+
+[functions.admin-users]
+# The function verifies the caller's JWT itself and requires an active administrator.
+verify_jwt = false

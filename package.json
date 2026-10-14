@@ -1,0 +1,39 @@
+{
+  "name": "grand-hyatt-red-sea-energy-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grand Hyatt The Red Sea – Energy, Utilities & Environmental Monitoring Platform",
+  "type": "module",
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:db": "bash tests/db/run.sh",
+    "seed:users": "node --env-file=.env.seed scripts/seed-users.mjs",
+    "verify": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.10",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "recharts": "^2.15.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5"
+  }
+}

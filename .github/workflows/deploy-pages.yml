@@ -1,0 +1,61 @@
+name: Deploy website to GitHub Pages
+
+# Settings > Pages > Source must be "GitHub Actions".
+# Settings > Secrets and variables > Actions > Variables (NOT secrets – these values are public in the website anyway):
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_AUTH_EMAIL_DOMAIN (optional), VITE_PROPERTY_NAME (optional),
+#   VITE_APP_NAME (optional), VITE_LOGO_PATH (optional), PAGES_BASE (optional, e.g. "/" for a custom domain)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Tests
+        run: npm test
+      - name: Check configuration
+        run: |
+          if [ -z "${{ vars.VITE_SUPABASE_URL }}" ] || [ -z "${{ vars.VITE_SUPABASE_ANON_KEY }}" ]; then
+            echo "::error::Repository variables VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not set (README section 6)."; exit 1; fi
+      - name: Build
+        run: npm run build
+        env:
+          # Project pages live under /<repository>/ ; set PAGES_BASE="/" for a custom domain or <user>.github.io repo.
+          VITE_BASE: ${{ vars.PAGES_BASE || format('/{0}/', github.event.repository.name) }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_AUTH_EMAIL_DOMAIN: ${{ vars.VITE_AUTH_EMAIL_DOMAIN }}
+          VITE_PROPERTY_NAME: ${{ vars.VITE_PROPERTY_NAME }}
+          VITE_APP_NAME: ${{ vars.VITE_APP_NAME }}
+          VITE_LOGO_PATH: ${{ vars.VITE_LOGO_PATH }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,1 @@
+{"device_id":"esp32-01","firmware":"1.0.0","readings":[{"ts":1760000001,"aht20":{"temp_c":27.41,"humidity_pct":50.25,"ok":true},"bmp280":{"temp_c":27.00,"pressure_hpa":1008.3,"ok":true},"boot":7},{"ts":1760000002,"aht20":{"ok":false},"bmp280":{"temp_c":-5.40,"pressure_hpa":1013.3,"ok":true},"boot":7},{"ts":1760000003,"aht20":{"ok":false},"bmp280":{"ok":false},"boot":7}]}

@@ -1,0 +1,31 @@
+name: Deploy Supabase backend (manual)
+
+# Applies database migrations and deploys the Edge Functions. Run it manually after changing anything in /supabase.
+# Required repository SECRETS: SUPABASE_ACCESS_TOKEN (personal access token), SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to apply migrations to the live database'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$PROJECT_REF"
+      - run: supabase db push
+      - run: supabase functions deploy ingest --project-ref "$PROJECT_REF" --no-verify-jwt
+      - run: supabase functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
