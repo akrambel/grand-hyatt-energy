@@ -14,16 +14,22 @@ import { ConfirmDialog, Field, Note, PageHead, StatusPill } from '../components/
 import { DataTable } from '../components/DataTable.tsx';
 import type { Column } from '../components/DataTable.tsx';
 import { clsx } from '../lib/format.ts';
+import { toDisplay } from '../lib/units.ts';
 
 interface Stored { meter_id: string; reading_date: string; opening: number | null; closing: number | null }
 
 async function fetchStored(meterIds: string[], dates: string[]): Promise<Stored[]> {
   const { data, error } = await supabase.from('readings').select('meter_id, reading_date, opening, closing').in('meter_id', meterIds).in('reading_date', dates);
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
-    meter_id: r.meter_id as string, reading_date: r.reading_date as string,
-    opening: r.opening === null ? null : Number(r.opening), closing: r.closing === null ? null : Number(r.closing),
-  }));
+  // Stored values are in each meter's native unit; the form works in the display unit chosen in Settings.
+  const meters = useData.getState().meterById;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
+    const f = meters.get(r.meter_id as string)?.unitFactor ?? 1;
+    return {
+      meter_id: r.meter_id as string, reading_date: r.reading_date as string,
+      opening: r.opening === null ? null : toDisplay(Number(r.opening), f), closing: r.closing === null ? null : toDisplay(Number(r.closing), f),
+    };
+  });
 }
 
 function recentStats(meterId: string, date: string, meterDays: ReturnType<typeof useData.getState>['meterDays']) {

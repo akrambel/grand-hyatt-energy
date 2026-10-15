@@ -8,6 +8,11 @@ import type { Utility } from '../../lib/types.ts';
 import { formatDate, localToday } from '../../lib/dates.ts';
 import { notify } from '../../store/ui.ts';
 import { parseReading } from '../../lib/validate.ts';
+import { BASE_UNITS } from '../../lib/units.ts';
+import type { UnitUtility } from '../../lib/units.ts';
+
+/** Tariffs are always entered per base unit (kWh, m³, litre), whatever display unit is chosen in Settings. */
+const baseUnit = (u: Utility): string => (u === 'energy' ? 'kWh' : BASE_UNITS[u as UnitUtility]);
 
 interface Row { id: string; utility: Utility; price_per_unit: number; currency: string; effective_from: string; note: string | null }
 
@@ -30,10 +35,10 @@ export default function TariffsTab() {
   };
   return (
     <div className="grid">
-      <Note kind="info">Costs = daily consumption × tariff valid on that day (latest tariff with “effective from” on or before the day). The workbook contains no prices, so enter the real contractual tariffs here – no value is assumed. Units: energy per kWh, water and chilled water per m³, gas per litre.</Note>
+      <Note kind="info">Costs = daily consumption × tariff valid on that day (latest tariff with “effective from” on or before the day). The workbook contains no prices, so enter the real contractual tariffs here – no value is assumed. Units: energy per kWh, water and chilled water per m³, gas per litre. These base units stay the same even if you choose another display unit in Settings; the conversion is automatic. Hot water and irrigation water use the water tariff.</Note>
       <div className="card"><h3>Add / update tariff</h3>
         <div className="form-grid">
-          <Field label="Utility"><select className="input" value={f.utility} onChange={(e) => setF({ ...f, utility: e.target.value as Utility })}>{UTILITIES.map((u) => <option key={u} value={u}>{UTILITY_INFO[u].label} (per {UTILITY_INFO[u].unit})</option>)}</select></Field>
+          <Field label="Utility"><select className="input" value={f.utility} onChange={(e) => setF({ ...f, utility: e.target.value as Utility })}>{UTILITIES.map((u) => <option key={u} value={u}>{UTILITY_INFO[u].label} (per {baseUnit(u)})</option>)}</select></Field>
           <Field label="Price per unit"><input className="input mono" inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></Field>
           <Field label="Currency"><input className="input" value={f.currency} maxLength={5} onChange={(e) => setF({ ...f, currency: e.target.value.toUpperCase() })} /></Field>
           <Field label="Effective from"><input className="input" type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
@@ -41,7 +46,7 @@ export default function TariffsTab() {
         </div>
         <button className="btn primary" style={{ marginTop: 12 }} disabled={bad} onClick={() => void add()}>Save tariff</button></div>
       <div className="card"><DataTable rows={rows} rowKey={(r) => r.id} empty="No tariffs configured." columns={[
-        { key: 'u', header: 'Utility', value: (r) => UTILITY_INFO[r.utility].label }, { key: 'p', header: 'Price per unit', num: true, value: (r) => r.price_per_unit }, { key: 'c', header: 'Currency', value: (r) => r.currency },
+        { key: 'u', header: 'Utility', value: (r) => UTILITY_INFO[r.utility].label }, { key: 'p', header: 'Price per unit', num: true, value: (r) => r.price_per_unit, render: (r) => `${r.price_per_unit} / ${baseUnit(r.utility)}` }, { key: 'c', header: 'Currency', value: (r) => r.currency },
         { key: 'f', header: 'Effective from', value: (r) => r.effective_from, render: (r) => formatDate(r.effective_from) }, { key: 'n', header: 'Note', value: (r) => r.note },
         { key: 'x', header: '', value: () => '', render: (r) => <button className="btn sm danger" onClick={() => setDel(r)}>Delete</button> }]} /></div>
       {del && <ConfirmDialog danger title="Delete tariff?" message="Costs for the affected days will become N/A unless an earlier tariff applies." confirmLabel="Delete" onCancel={() => setDel(null)}

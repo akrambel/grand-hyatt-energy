@@ -145,12 +145,20 @@ Why HTTPS instead of MQTT: it needs no extra server, works with the free Supabas
 | Alerts | all | Sensor threshold alerts, device offline, missing data, abnormal consumption |
 | Administration | admin | Users (enable data entry, reset password), Import, Export, Meters, Tariffs, Settings & thresholds, Devices, Audit/maintenance |
 
+| Guest Rooms (Chilled) | all (entry: authorised, room list: admin) | One BTU meter per room (430 keys): cumulative reading + daily room status (Occupied, Vacant, Out of order, Out of service, House use). Consumption by status, top rooms, vacant rooms using as much as an occupied one. Daily entry by hand or Excel/CSV upload (Room, Reading, Status). Works on up to 93 days at a time |
+
+**Period menu:** every report page offers *MTD – Month to date* and *WTD – Week to date* (week starts Sunday). The search box also understands `mtd`, `wtd`, `mtd energy` …
+
+**Display units (Administration → Settings):** water (including hot and irrigation), gas and chilled water can be shown in m³ or litres. The database keeps each meter's own unit; values, tariffs, budgets and daily entry are converted automatically. Tariffs stay per m³ (water, chilled) and per litre (gas).
+
+**Water sections:** water meters have a *Water section* (Potable / Hot water / Irrigation water, set in Administration → Meters). All sections are **included in the water total** and use the **water tariff**; the Water page and the Overview show them separately. No hot-water or irrigation meters are pre-loaded – add the real meters first.
+
 Missing data is shown as **N/A / "No data available"** and never estimated. Reporting year starts on **1 October**.
 
 ---
 ## 9. Tests
 ```bash
-npm test                       # 57 logic tests (Node 22)
+npm test                       # 73 logic tests (Node 22)
 npm run test:db                # needs DATABASE_URL of an EMPTY scratch PostgreSQL (never production)
 bash firmware/tests/run.sh     # firmware core on your PC (needs g++)
 npm run verify                 # typecheck + tests + production build

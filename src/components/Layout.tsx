@@ -51,6 +51,12 @@ function Notifications() {
   );
 }
 
+const QUICK_PERIODS = [
+  { mode: 'mtd', short: 'MTD', name: 'Month to date', terms: 'mtd month to date' },
+  { mode: 'wtd', short: 'WTD', name: 'Week to date', terms: 'wtd week to date' },
+];
+const QUICK_PAGES = NAV.filter((p) => ['/', '/energy', '/water', '/gas', '/chilled', '/costs'].includes(p.path));
+
 function GlobalSearch() {
   const [q, setQ] = useState('');
   const nav = useNavigate();
@@ -63,12 +69,18 @@ function GlobalSearch() {
     const pages = NAV.filter((p) => (admin || !p.adminOnly) && `${p.label} ${p.keywords ?? ''}`.toLowerCase().includes(n)).map((p) => ({ key: p.path, label: p.label, sub: 'Page', to: p.path }));
     const ms = meters.filter((m) => `${m.code} ${m.name} ${m.area}`.toLowerCase().includes(n)).slice(0, 8)
       .map((m) => ({ key: m.id, label: m.name, sub: `${m.area} · ${m.utility}`, to: `/daily?meter=${m.id}` }));
-    return [...pages, ...ms];
+    // Quick period views: "mtd", "wtd", "mtd energy", "week to date water" ...
+    const words = n.split(/\s+/).filter(Boolean);
+    const quick = QUICK_PERIODS.flatMap((qp) => QUICK_PAGES.map((pg) => ({ qp, pg })))
+      .filter(({ qp, pg }) => { const hay = `${qp.terms} ${pg.label} ${pg.keywords ?? ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
+      .slice(0, 6)
+      .map(({ qp, pg }) => ({ key: `${qp.mode}:${pg.path}`, label: `${qp.short} – ${pg.label}`, sub: qp.name, to: `${pg.path}?period=${qp.mode}` }));
+    return [...quick, ...pages, ...ms];
   }, [q, meters, admin]);
   return (
     <div className="search" ref={ref}>
       <Search size={16} />
-      <input aria-label="Global search" placeholder="Search pages and meters…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input aria-label="Global search" placeholder="Search pages, meters, MTD, WTD…" value={q} onChange={(e) => setQ(e.target.value)} />
       {hits.length > 0 && (
         <div className="search-results">
           {hits.map((h) => <a key={h.key} href={`#${h.to}`} onClick={(e) => { e.preventDefault(); nav(h.to); setQ(''); }}>{h.label} <span className="small muted">— {h.sub}</span></a>)}

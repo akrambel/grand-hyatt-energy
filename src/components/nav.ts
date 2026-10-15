@@ -1,4 +1,4 @@
-import { LayoutDashboard, CalendarDays, PenSquare, Zap, Droplets, Flame, Snowflake, Wallet, Scale, Fuel, GitCompare, Thermometer, Radio, CalendarRange, BarChart3, Bell, Settings, UserCircle } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, PenSquare, Zap, Droplets, Flame, Snowflake, Wallet, Scale, Fuel, BedDouble, GitCompare, Thermometer, Radio, CalendarRange, BarChart3, Bell, Settings, UserCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem { path: string; label: string; icon: LucideIcon; group: string; adminOnly?: boolean; keywords?: string }
@@ -11,6 +11,7 @@ export const NAV: NavItem[] = [
   { path: '/water', label: 'Water', icon: Droplets, group: 'Utilities', keywords: 'm3 domestic' },
   { path: '/gas', label: 'Gas / LPG', icon: Flame, group: 'Utilities', keywords: 'lpg litres' },
   { path: '/chilled', label: 'Chilled Water', icon: Snowflake, group: 'Utilities', keywords: 'cooling ton' },
+  { path: '/rooms', label: 'Guest Rooms (Chilled)', icon: BedDouble, group: 'Utilities', keywords: 'rooms 430 keys btu chilled water occupancy status vacant occupied' },
   { path: '/lpg', label: 'LPG Tanks', icon: Fuel, group: 'Utilities', keywords: 'tank level' },
   { path: '/costs', label: 'Costs', icon: Wallet, group: 'Analysis', keywords: 'tariff price sar' },
   { path: '/budget', label: 'Budget vs Actual', icon: Scale, group: 'Analysis', keywords: 'variance previous year' },

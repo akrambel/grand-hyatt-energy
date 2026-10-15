@@ -15,6 +15,7 @@ import { meterTotalsInRange } from '../lib/calc.ts';
 import { UTILITY_INFO } from '../lib/types.ts';
 import type { Utility } from '../lib/types.ts';
 import { fmtAuto, fmtMoney, fmtNumber, NA } from '../lib/format.ts';
+import { WaterSectionsPanel, useWaterSections } from '../components/WaterSections.tsx';
 import { formatDate, monthShortName, parseISO } from '../lib/dates.ts';
 
 export default function UtilityPage({ utility }: { utility: Utility }) {
@@ -27,6 +28,7 @@ export default function UtilityPage({ utility }: { utility: Utility }) {
   const meterDays = useData((s) => s.meterDays);
   const stats = usePeriodStats(period.start, period.end).byUtility[utility];
   const [areaFilter, setAreaFilter] = useState('all');
+  const sections = useWaterSections(period.start, period.end);
 
   const daily = useMemo(() => dailySeries(totals, period.start, period.end), [totals, period.start, period.end]);
   // anomalies use the whole loaded year as history, then are shown for the selected period
@@ -65,6 +67,7 @@ export default function UtilityPage({ utility }: { utility: Utility }) {
       { label: `Per occupied room (${info.unit})`, value: fmtNumber(stats.perRoom, 2) }, { label: 'Cost', value: stats.cost.cost === null ? NA : fmtMoney(stats.cost.cost, stats.cost.currency ?? 'SAR') },
     ],
     tables: [
+      ...(utility === 'water' ? [{ title: 'Water sections (included in the water total)', headers: ['Section', `Total (${info.unit})`, 'Share %', 'Meters', 'Cost'], rows: sections.map((x) => [x.label, x.total, x.share, x.meters, x.cost.cost === null ? NA : fmtMoney(x.cost.cost, x.cost.currency ?? 'SAR')]), numericCols: [1, 2, 3] }] : []),
       { title: 'Consumption by area', headers: ['Area', `Total (${info.unit})`, 'Days'], rows: areas.map((a) => [a.area, a.total, a.days]), numericCols: [1, 2] },
       { title: 'Daily totals', headers: ['Date', `Total (${info.unit})`, 'Meters counted', 'Typical', 'Deviation'], rows: dayRows.map((r) => [r.date, r.value, `${r.counted}/${r.expected}`, r.a?.baseline ?? null, r.a?.state === 'anomaly' ? `${r.a.direction} (z ${r.a.z})` : r.a?.state === 'normal' ? 'Normal' : 'Not enough history']), numericCols: [1, 3] },
       { title: 'Consumption by meter', headers: ['Area', 'Meter', 'Total', 'Days'], rows: meterRows.map((m) => [m.area, m.name, m.total, m.days]), numericCols: [2, 3] },
@@ -85,7 +88,8 @@ export default function UtilityPage({ utility }: { utility: Utility }) {
         <KpiCard label="Cost" value={stats.cost.cost === null ? null : fmtMoney(stats.cost.cost, stats.cost.currency ?? 'SAR')} sub={stats.cost.cost === null ? 'No tariff configured' : stats.cost.daysWithoutTariff ? `${stats.cost.daysWithoutTariff} day(s) without tariff excluded` : undefined} />
         <KpiCard label="Abnormal days" value={settings.anomaly.enabled ? fmtNumber(anomalies.length) : null} color="#a51a2d" sub={insufficient ? `${insufficient} day(s) have too little history to judge` : undefined} />
       </div>
-      <div className="grid g2">
+      {utility === 'water' && <WaterSectionsPanel sections={sections} start={period.start} end={period.end} />}
+      <div className="grid g2" style={utility === 'water' ? { marginTop: 16 } : undefined}>
         <ChartCard title={`Daily consumption (${info.unit})`} hasData={chart.some((c) => c.value !== null)}>
           <LineChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
             <Line type="monotone" dataKey="value" name={`Consumption (${info.unit})`} stroke={UTILITY_COLOR[utility]} strokeWidth={2} dot={false} connectNulls={false} />

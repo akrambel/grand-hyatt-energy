@@ -15,6 +15,8 @@ import { ambientTemp } from '../lib/sensor.ts';
 import { ENV, brandUrl } from '../config/env.ts';
 import { formatDateTimeLocal, monthShortName, parseISO } from '../lib/dates.ts';
 
+import { sectionKpis, useWaterSections } from '../components/WaterSections.tsx';
+
 const ICON = { energy: Zap, water: Droplets, gas: Flame, chilled: Snowflake } as const;
 
 export default function Overview() {
@@ -27,6 +29,9 @@ export default function Overview() {
   const latest = useSensors((s) => s.latest);
   const { byUtility, metrics } = usePeriodStats(period.start, period.end);
   const cost = useTotalCost(byUtility);
+  const sections = useWaterSections(period.start, period.end);
+  const hotWater = sections.find((x) => x.category === 'hot_water');
+  const irrigation = sections.find((x) => x.category === 'irrigation');
 
   const live = useMemo(() => {
     const rows = Object.values(latest).sort((a, b) => (a.measured_at < b.measured_at ? 1 : -1));
@@ -56,6 +61,7 @@ export default function Overview() {
     title: 'General Overview', period: period.label,
     kpis: [
       ...UTILITIES.map((u) => ({ label: `${UTILITY_INFO[u].label} (${UTILITY_INFO[u].unit})`, value: fmtAuto(byUtility[u].total) })),
+      ...sectionKpis(sections.filter((x) => x.category !== 'standard')),
       { label: 'Total utility cost', value: cost.total === null ? NA : fmtMoney(cost.total, cost.currency ?? 'SAR') },
       { label: 'Average occupancy', value: fmtPercent(metrics.occupancyAvg) },
       { label: 'Occupied room-nights', value: fmtNumber(metrics.roomsSold) },
@@ -86,6 +92,10 @@ export default function Overview() {
           return <KpiCard key={u} label={UTILITY_INFO[u].label} icon={<I size={14} />} color={UTILITY_COLOR[u]} value={s.total === null ? null : fmtAuto(s.total)} unit={UTILITY_INFO[u].unit}
             sub={s.total === null ? undefined : `${s.days} days · avg ${fmtAuto(s.avgDaily)} ${UTILITY_INFO[u].unit}/day`} />;
         })}
+        <KpiCard label="Hot water" icon={<Droplets size={14} />} color="#e8892d" value={hotWater?.total == null ? null : fmtAuto(hotWater.total)} unit={UTILITY_INFO.water.unit}
+          sub={hotWater && hotWater.meters === 0 ? 'No meters configured · part of Water' : hotWater?.share != null ? `${fmtNumber(hotWater.share, 1)} % of water` : 'Part of the water total'} />
+        <KpiCard label="Irrigation water" icon={<Droplets size={14} />} color="#14a39b" value={irrigation?.total == null ? null : fmtAuto(irrigation.total)} unit={UTILITY_INFO.water.unit}
+          sub={irrigation && irrigation.meters === 0 ? 'No meters configured · part of Water' : irrigation?.share != null ? `${fmtNumber(irrigation.share, 1)} % of water` : 'Part of the water total'} />
         <KpiCard label="Utility cost" icon={<Wallet size={14} />} color="#a51a2d" value={cost.total === null ? null : fmtMoney(cost.total, cost.currency ?? 'SAR')}
           sub={cost.total === null ? 'Set tariffs in Administration' : cost.incomplete ? 'Partial – some utilities have no tariff' : undefined} />
         <KpiCard label="Avg occupancy" icon={<BedDouble size={14} />} value={metrics.occupancyAvg === null ? null : fmtPercent(metrics.occupancyAvg)} sub={metrics.roomsSold === null ? undefined : `${fmtNumber(metrics.roomsSold)} room-nights`} />

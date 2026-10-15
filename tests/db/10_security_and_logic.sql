@@ -338,4 +338,48 @@ select pg_temp.t_assert((select count(*) from public.meters where code like 'WA-
 select pg_temp.t_assert((select count(*) from public.meters where code like 'GA-%') = 9,  'seed: 9 gas meters');
 select pg_temp.t_assert((select count(*) from public.meters where code like 'CW-%') = 55, 'seed: 55 chilled-water meters');
 
+-- ================================ 11. water sections and guest-room chilled water ==
+select pg_temp.t_assert((select count(*) from public.meters where category = 'standard') = (select count(*) from public.meters),
+  'all existing meters default to the standard section');
+select pg_temp.t_fails($$insert into public.meters (code, utility, area, name, unit, category) values ('TST-BAD','water','a','b','m³','swimming')$$,
+  'unknown water section is rejected', '23514');
+insert into public.meters (code, utility, area, name, unit, category) values
+  ('TST-HOT', 'water', 'Test', 'Hot water test meter', 'm³', 'hot_water'),
+  ('TST-IRR', 'water', 'Test', 'Irrigation test meter', 'm³', 'irrigation');
+select pg_temp.t_assert((select count(*) from public.meters where category in ('hot_water','irrigation')) = 2, 'hot water and irrigation meters can be created');
+
+-- rooms: administrators manage the room list, viewers cannot
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+insert into public.rooms (room_number, sort_order) values ('1001', 1), ('1002', 2), ('1003', 3);
+select pg_temp.t_fails($$insert into public.rooms (room_number) values ('bad room!')$$, 'invalid room number is rejected', '23514');
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.t_assert((select count(*) from public.rooms) = 3, 'viewer can read the room list');
+select pg_temp.t_fails($$insert into public.rooms (room_number) values ('2001')$$, 'viewer cannot add rooms', '42501');
+select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date, closing, status) values ('1001', public.local_today() - 1, 10, 'occupied')$$,
+  'viewer without permission cannot enter room readings', '42501');
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
+select pg_temp.t_fails($$insert into public.rooms (room_number) values ('2001')$$, 'entry user cannot add rooms', '42501');
+insert into public.room_readings (room_number, reading_date, closing, status) values
+  ('1001', public.local_today() - 2, 500, 'occupied'), ('1001', public.local_today() - 1, 583, 'occupied'),
+  ('1002', public.local_today() - 1, 40, 'vacant');
+select pg_temp.t_assert((select count(*) from public.room_readings) = 3, 'entry user can save room readings and status');
+select pg_temp.t_assert((select entered_by from public.room_readings limit 1) = '00000000-0000-0000-0000-0000000000b2', 'room readings record who entered them');
+select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date, closing, status) values ('1003', public.local_today() + 1, 5, 'vacant')$$,
+  'future-dated room readings are rejected', '23514');
+select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date, closing, status) values ('1003', public.local_today() - 1, 5, 'sleeping')$$,
+  'unknown room status is rejected', '23514');
+select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date) values ('1003', public.local_today() - 1)$$,
+  'a room row needs a reading or a status', '23514');
+select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date, closing, status) values ('9999', public.local_today() - 1, 5, 'vacant')$$,
+  'unknown room number is rejected', '23503');
+delete from public.room_readings;
+select pg_temp.t_assert((select count(*) from public.room_readings) = 3, 'entry user cannot delete room readings (RLS blocks it)');
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+delete from public.room_readings where room_number = '1002';
+select pg_temp.t_assert((select count(*) from public.room_readings) = 2, 'administrator can delete room readings');
+reset role;
+
 \echo ALL DATABASE TESTS PASSED

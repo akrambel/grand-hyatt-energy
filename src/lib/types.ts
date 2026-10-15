@@ -23,6 +23,12 @@ export const UTILITY_INFO: Record<Utility, UtilityInfo> = {
   chilled: { key: 'chilled', label: 'Chilled Water', short: 'Chilled', unit: 'm³', budgetLabel: 'Chilled Water' },
 };
 
+export type MeterCategory = 'standard' | 'hot_water' | 'irrigation';
+
+export const METER_CATEGORIES: readonly MeterCategory[] = ['standard', 'hot_water', 'irrigation'];
+
+export const CATEGORY_LABEL: Record<MeterCategory, string> = { standard: 'Potable / standard', hot_water: 'Hot water', irrigation: 'Irrigation water' };
+
 export interface Meter {
   id: string;
   code: string;
@@ -34,6 +40,12 @@ export interface Meter {
   include_in_total: boolean;
   rollover_at: number | null;
   active: boolean;
+  /** Section of the utility the meter belongs to (water: potable, hot water, irrigation). Default 'standard'. */
+  category?: MeterCategory;
+  /** Unit stored in the database; `unit` is the display unit chosen in Settings. */
+  nativeUnit?: string;
+  /** displayValue = storedValue × unitFactor (1 when no conversion). */
+  unitFactor?: number;
 }
 
 export interface Reading {

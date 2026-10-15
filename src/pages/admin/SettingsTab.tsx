@@ -4,6 +4,8 @@ import { supabase, friendlyError } from '../../lib/supabase.ts';
 import { Field, Note } from '../../components/ui.tsx';
 import { notify } from '../../store/ui.ts';
 import type { Settings } from '../../lib/settings.ts';
+import { UNIT_CHOICES, UNIT_UTILITIES } from '../../lib/units.ts';
+import type { UnitSettings, VolumeUnit } from '../../lib/units.ts';
 
 const num = (s: string): number | null => { const t = s.trim(); if (t === '') return null; const n = Number(t); return Number.isFinite(n) ? n : NaN; };
 const txt = (v: number | null) => (v === null ? '' : String(v));
@@ -15,7 +17,7 @@ export default function SettingsTab() {
     cooldown: String(settings.alertCooldownMinutes), offline: String(settings.deviceOfflineMinutes),
     lat: txt(settings.site.latitude), lon: txt(settings.site.longitude), siteName: settings.site.name,
     z: String(settings.anomaly.zThreshold), minSamples: String(settings.anomaly.minSamples), windowDays: String(settings.anomaly.windowDays), anomalyOn: settings.anomaly.enabled,
-    jump: String(settings.entry.jumpFactor), caps: settings.lpg.capacityLitres.map(String),
+    jump: String(settings.entry.jumpFactor), units: { ...settings.units } as UnitSettings, roomUnit: settings.roomMeterUnit, caps: settings.lpg.capacityLitres.map(String),
   }));
   const [busy, setBusy] = useState(false);
 
@@ -44,7 +46,7 @@ export default function SettingsTab() {
     const rows = [
       { key: 'thresholds', value: t }, { key: 'alert_cooldown_minutes', value: cool }, { key: 'device_offline_minutes', value: off },
       { key: 'site', value: { name: s.siteName, latitude: lat, longitude: lon } },
-      { key: 'anomaly', value: { enabled: s.anomalyOn, zThreshold: z, minSamples: ms, windowDays: wd } }, { key: 'entry', value: { jumpFactor: jf } }, { key: 'lpg', value: { capacityLitres: caps } },
+      { key: 'anomaly', value: { enabled: s.anomalyOn, zThreshold: z, minSamples: ms, windowDays: wd } }, { key: 'entry', value: { jumpFactor: jf } }, { key: 'lpg', value: { capacityLitres: caps } }, { key: 'units', value: s.units }, { key: 'room_meter_unit', value: s.roomUnit },
     ];
     const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -66,6 +68,21 @@ export default function SettingsTab() {
         <div className="form-grid">
           <Field label="Alert cooldown (minutes)"><input className="input mono" value={s.cooldown} onChange={(e) => setS({ ...s, cooldown: e.target.value })} /></Field>
           <Field label="Device offline after (minutes)"><input className="input mono" value={s.offline} onChange={(e) => setS({ ...s, offline: e.target.value })} /></Field>
+        </div></div>
+      <div className="card"><h3>Display units</h3>
+        <Note kind="info">Choose the unit shown on every page, chart, report and export. Meters keep their own unit in the database; values are converted automatically (1 m³ = 1,000 L), including costs, budgets and daily entry. Tariffs are still entered per m³ (water, chilled water) and per litre (gas).</Note>
+        <div className="form-grid">
+          {UNIT_UTILITIES.map((u) => (
+            <Field key={u} label={u === 'water' ? 'Water (incl. hot water and irrigation)' : u === 'gas' ? 'Gas / LPG' : 'Chilled water'}>
+              <select className="input" value={s.units[u]} onChange={(e) => setS({ ...s, units: { ...s.units, [u]: e.target.value as VolumeUnit } })}>
+                {UNIT_CHOICES.map((c) => <option key={c} value={c}>{c === 'L' ? 'Litres (L)' : 'Cubic metres (m³)'}</option>)}
+              </select>
+            </Field>))}
+          <Field label="Guest-room BTU meters show" hint="The unit printed on the room meters. Volume units follow the chilled-water display unit above.">
+            <select className="input" value={s.roomUnit} onChange={(e) => setS({ ...s, roomUnit: e.target.value })}>
+              <option value="m³">Cubic metres (m³)</option><option value="L">Litres (L)</option><option value="kWh">Energy (kWh)</option>
+            </select>
+          </Field>
         </div></div>
       <div className="card"><h3>Property & weather</h3>
         <div className="form-grid">

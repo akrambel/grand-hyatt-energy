@@ -8,7 +8,10 @@ import type { UtilityDayTotals } from '../lib/calc.ts';
 import { addDays, fiscalRange, fiscalYearOf, localToday } from '../lib/dates.ts';
 import { DEFAULT_SETTINGS, parseSettings } from '../lib/settings.ts';
 import type { Settings } from '../lib/settings.ts';
-import type { BudgetRow, DailyMetric, Meter, MeterDay, Reading, Tariff } from '../lib/types.ts';
+import { UTILITY_INFO } from '../lib/types.ts';
+import type { BudgetRow, DailyMetric, Meter, MeterCategory, MeterDay, Reading, Tariff } from '../lib/types.ts';
+import { BASE_UNITS, UNIT_UTILITIES, normalizeUnit, priceToDisplay, toDisplay, toNative, unitFactor } from '../lib/units.ts';
+import type { UnitUtility } from '../lib/units.ts';
 
 export interface LpgLevel { id?: string; tank: number; level_fraction: number; recorded_at: string }
 export interface AlertRow {
@@ -74,7 +77,36 @@ const toMeter = (r: Record<string, unknown>): Meter => ({
   id: r.id as string, code: r.code as string, utility: r.utility as Meter['utility'], area: r.area as string,
   name: r.name as string, unit: r.unit as string, sort_order: Number(r.sort_order ?? 0),
   include_in_total: r.include_in_total !== false, rollover_at: num(r.rollover_at), active: r.active !== false,
+  category: ((r.category as MeterCategory | undefined) ?? 'standard'),
 });
+
+const isUnitUtility = (u: string): u is UnitUtility => (UNIT_UTILITIES as readonly string[]).includes(u);
+
+/** Makes the UI labels (UTILITY_INFO) follow the display units chosen in Settings. */
+function applyDisplayUnits(settings: Settings): void {
+  for (const u of UNIT_UTILITIES) UTILITY_INFO[u].unit = settings.units[u];
+}
+
+/** displayValue = baseValue × factor, for tariff and budget values that are stored in the workbook's base unit. */
+const baseFactor = (u: UnitUtility, settings: Settings): number => unitFactor(BASE_UNITS[u], settings.units[u]);
+const displayPrice = (utility: string, price: number, settings: Settings): number =>
+  isUnitUtility(utility) ? priceToDisplay(price, baseFactor(utility, settings)) : price;
+
+/** Converts a meter to the display unit (reading values are converted separately with the same factor). */
+function withDisplayUnit(m: Meter, settings: Settings): Meter {
+  const nativeUnit = normalizeUnit(m.unit);
+  if (!isUnitUtility(m.utility)) return { ...m, nativeUnit, unitFactor: 1 };
+  const display = settings.units[m.utility];
+  const factor = unitFactor(nativeUnit, display);
+  const isVolume = nativeUnit === 'm³' || nativeUnit === 'L';
+  return { ...m, nativeUnit, unitFactor: factor, unit: isVolume ? display : m.unit, rollover_at: toDisplay(m.rollover_at, factor) };
+}
+
+/** Raw database row → reading in display units (meter factor taken from the loaded meters). */
+function toDisplayReading(raw: Reading, factorOf: (meterId: string) => number): Reading {
+  const f = factorOf(raw.meter_id);
+  return f === 1 ? raw : { ...raw, opening: toDisplay(raw.opening, f), closing: toDisplay(raw.closing, f) };
+}
 const toReading = (r: Record<string, unknown>): Reading => ({
   id: r.id as string, meter_id: r.meter_id as string, reading_date: r.reading_date as string,
   opening: num(r.opening), closing: num(r.closing), note: (r.note as string | null) ?? null,
@@ -118,16 +150,18 @@ export const useData = create<DataState>((set, get) => ({
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('tariffs').select('*').order('effective_from').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('budgets').select('*').range(a, b)),
       ]);
-      const meters = meterRows.map(toMeter);
-      const readings = readingRows.map(toReading);
+      applyDisplayUnits(settings);
+      const meters = meterRows.map(toMeter).map((m) => withDisplayUnit(m, settings));
+      const factorById = new Map(meters.map((m) => [m.id, m.unitFactor ?? 1]));
+      const readings = readingRows.map(toReading).map((r) => toDisplayReading(r, (id) => factorById.get(id) ?? 1));
       const metrics = metricRows.map(toMetric);
       set({
         settings, meters, readings, metrics,
-        tariffs: tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: Number(t.price_per_unit), currency: t.currency as string, effective_from: t.effective_from as string })),
+        tariffs: tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string })),
         budgets: budgetRows.map((b) => ({
           fiscal_year: Number(b.fiscal_year), month: Number(b.month), kind: b.kind as BudgetRow['kind'],
           rooms_sold: num(b.rooms_sold), occupancy_rate: num(b.occupancy_rate), guests: num(b.guests),
-          gas: num(b.gas), electricity: num(b.electricity), water: num(b.water),
+          gas: toDisplay(num(b.gas), baseFactor('gas', settings)), electricity: num(b.electricity), water: toDisplay(num(b.water), baseFactor('water', settings)),
         })),
         ...derive(meters, readings, metrics),
         status: 'ready', loadedAt: Date.now(),
@@ -184,7 +218,7 @@ export const useData = create<DataState>((set, get) => ({
     const channel = supabase.channel('ghrs-data')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'readings' }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
         if (p.eventType === 'DELETE') { if (p.old?.id) get().removeReadingLocal(p.old.id as string); return; }
-        const r = toReading(p.new);
+        const r = toDisplayReading(toReading(p.new), (id) => get().meterById.get(id)?.unitFactor ?? 1);
         if (inFy(r.reading_date)) get().upsertReadingLocal(r);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_metrics' }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -213,12 +247,16 @@ function scheduleRecompute() {
 export interface SaveReadingInput { meter_id: string; reading_date: string; opening: number | null; closing: number; note?: string | null }
 
 export async function saveReading(input: SaveReadingInput): Promise<Reading> {
+  // The form works in the display unit; the database keeps the meter's native unit.
+  const factor = useData.getState().meterById.get(input.meter_id)?.unitFactor ?? 1;
+  const nativeOpening = input.opening === null ? null : toNative(input.opening, factor);
+  const nativeClosing = toNative(input.closing, factor);
   const { data, error } = await supabase.from('readings')
-    .upsert({ meter_id: input.meter_id, reading_date: input.reading_date, opening: input.opening, closing: input.closing, note: input.note ?? null, source: 'manual' },
+    .upsert({ meter_id: input.meter_id, reading_date: input.reading_date, opening: nativeOpening, closing: nativeClosing, note: input.note ?? null, source: 'manual' },
       { onConflict: 'meter_id,reading_date' })
     .select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at').single();
   if (error) throw new Error(friendlyError(error));
-  const reading = toReading(data as Record<string, unknown>);
+  const reading = toDisplayReading(toReading(data as Record<string, unknown>), () => factor);
   useData.getState().upsertReadingLocal(reading);
   return reading;
 }

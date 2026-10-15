@@ -1,5 +1,7 @@
 import { DEFAULT_ANOMALY } from './anomaly.ts';
 import type { AnomalyOptions } from './anomaly.ts';
+import { DEFAULT_UNITS, parseUnits } from './units.ts';
+import type { UnitSettings } from './units.ts';
 
 export interface ThresholdSetting { enabled: boolean; min: number | null; max: number | null }
 
@@ -13,6 +15,9 @@ export interface Settings {
   anomaly: AnomalyOptions & { enabled: boolean };
   entry: { jumpFactor: number };
   lpg: { capacityLitres: number[] };
+  units: UnitSettings;
+  /** Unit shown on the guest-room BTU meters (stored value): 'm³', 'L' or 'kWh'. */
+  roomMeterUnit: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   anomaly: { enabled: true, ...DEFAULT_ANOMALY },
   entry: { jumpFactor: 5 },
   lpg: { capacityLitres: [4000, 4000, 4000] },
+  units: DEFAULT_UNITS,
+  roomMeterUnit: 'm³',
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -69,6 +76,8 @@ export function parseSettings(rows: Array<{ key: string; value: unknown }>): Set
       : d.anomaly,
     entry: { jumpFactor: isObj(en) ? numOr(en.jumpFactor, 5) : d.entry.jumpFactor },
     lpg: { capacityLitres: caps },
+    units: parseUnits(m.get('units')),
+    roomMeterUnit: ['m³', 'L', 'kWh'].includes(String(m.get('room_meter_unit'))) ? String(m.get('room_meter_unit')) : d.roomMeterUnit,
   };
 }
 
