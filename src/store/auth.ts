@@ -6,7 +6,7 @@ export interface Profile {
   id: string;
   username: string;
   display_name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'recorder';
   can_enter_data: boolean;
   active: boolean;
 }
@@ -89,4 +89,5 @@ export const useAuth = create<AuthState>((set, get) => ({
 }));
 
 export const useIsAdmin = (): boolean => useAuth((s) => s.profile?.role === 'admin');
-export const useCanEnter = (): boolean => useAuth((s) => !!s.profile && (s.profile.role === 'admin' || s.profile.can_enter_data));
+export const useIsRecorder = (): boolean => useAuth((s) => s.profile?.role === 'recorder');
+export const useCanEnter = (): boolean => useAuth((s) => !!s.profile && (s.profile.role === 'admin' || s.profile.role === 'recorder' || s.profile.can_enter_data));

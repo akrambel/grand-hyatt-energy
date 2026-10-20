@@ -9,7 +9,7 @@ import { notify } from '../../store/ui.ts';
 import { useAuth } from '../../store/auth.ts';
 import type { Profile } from '../../store/auth.ts';
 
-async function callAdmin(body: Record<string, unknown>): Promise<void> {
+async function callAdmin(body: Record<string, unknown>): Promise<{ id?: string } | null> {
   const { data, error } = await supabase.functions.invoke('admin-users', { body });
   if (error) {
     // invoke wraps non-2xx; try to read the JSON message of the function
@@ -18,7 +18,11 @@ async function callAdmin(body: Record<string, unknown>): Promise<void> {
     throw new Error(error.message);
   }
   if (data && data.ok === false) throw new Error(data.error ?? 'Request failed');
+  return (data as { id?: string } | null) ?? null;
 }
+
+type Role = Profile['role'];
+const ROLE_LABEL: Record<Role, string> = { admin: 'Administrator', user: 'User', recorder: 'Recorder' };
 
 export default function UsersTab() {
   const me = useAuth((s) => s.profile);
@@ -41,11 +45,14 @@ export default function UsersTab() {
   return (
     <div className="card">
       <div className="card-head"><h3>Users</h3><button className="btn primary" onClick={() => setCreating(true)}>Add user</button></div>
-      <Note kind="info">Regular users can always view, search, filter and export. Enable <strong>Data entry</strong> to let a user enter daily readings. Administrators always can. Passwords are never displayed; only a reset is possible.</Note>
+      <Note kind="info"><strong>Administrators</strong> see everything and manage users and settings. <strong>Users</strong> view, search and export reports; tick <strong>Data entry</strong> to let them enter daily readings too. <strong>Recorders</strong> only see Daily Entry and My Account. Passwords are never displayed; only a reset is possible.</Note>
       <DataTable rows={users} rowKey={(u) => u.id} searchable columns={[
         { key: 'u', header: 'Username', value: (u) => u.username }, { key: 'n', header: 'Name', value: (u) => u.display_name },
-        { key: 'r', header: 'Role', value: (u) => u.role, render: (u) => (u.role === 'admin' ? 'Administrator' : 'User') },
-        { key: 'e', header: 'Data entry', value: (u) => (u.role === 'admin' || u.can_enter_data ? 'Yes' : 'No'), render: (u) => u.role === 'admin' ? <span className="muted">always</span> :
+        { key: 'r', header: 'Role', value: (u) => u.role, render: (u) => u.id === me?.id ? ROLE_LABEL[u.role] :
+          <select className="input sm" aria-label={`Role of ${u.username}`} value={u.role} onChange={(e) => void patch(u, { role: e.target.value as Role })}>
+            {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+          </select> },
+        { key: 'e', header: 'Data entry', value: (u) => (u.role !== 'user' || u.can_enter_data ? 'Yes' : 'No'), render: (u) => u.role !== 'user' ? <span className="muted">always</span> :
           <label><input type="checkbox" checked={u.can_enter_data} onChange={(e) => void patch(u, { can_enter_data: e.target.checked })} /> allowed</label> },
         { key: 'a', header: 'Status', value: (u) => (u.active ? 'Active' : 'Deactivated'), render: (u) => <StatusPill kind={u.active ? 'ok' : 'bad'}>{u.active ? 'Active' : 'Deactivated'}</StatusPill> },
         { key: 'x', header: '', value: () => '', render: (u) => <span className="actions"><button className="btn sm" onClick={() => setResetFor(u)}>Reset password</button>
@@ -65,7 +72,20 @@ function CreateUser({ onClose }: { onClose: () => void }) {
   const problems = f.password ? passwordProblems(f.password) : [];
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true);
-    try { await callAdmin({ action: 'create_user', ...f }); notify.success('User created', f.username); onClose(); } catch (err) { notify.error('User not created', friendlyError(err)); } finally { setBusy(false); }
+    try {
+      // A recorder is created as a user, then switched to recorder (works with older versions of the admin-users function too).
+      const res = await callAdmin({ action: 'create_user', ...f, can_enter_data: f.role === 'recorder' || f.can_enter_data });
+      if (f.role === 'recorder') {
+        let id = res?.id;
+        if (!id) {
+          const { data } = await supabase.from('profiles').select('id').ilike('username', f.username.replace(/[\\%_]/g, '\\$&')).maybeSingle();
+          id = (data as { id: string } | null)?.id;
+        }
+        if (!id) throw new Error('The user was created, but the role could not be set to Recorder. Change it in the list.');
+        const { error } = await supabase.from('profiles').update({ role: 'recorder' }).eq('id', id);
+        if (error) throw new Error(`The user was created as User; set the role to Recorder in the list. (${friendlyError(error)})`);
+      }
+      notify.success('User created', f.username); onClose(); } catch (err) { notify.error('User not created', friendlyError(err)); } finally { setBusy(false); }
   };
   return (
     <Modal title="Add user" onClose={onClose}>
@@ -74,8 +94,9 @@ function CreateUser({ onClose }: { onClose: () => void }) {
         <Field label="Display name"><input className="input" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} /></Field>
         <Field label="Initial password"><input className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required /></Field>
         {problems.length > 0 && <Note kind="warn"><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></Note>}
-        <Field label="Role"><select className="input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}><option value="user">User</option><option value="admin">Administrator</option></select></Field>
-        <label><input type="checkbox" checked={f.can_enter_data} onChange={(e) => setF({ ...f, can_enter_data: e.target.checked })} /> Allow daily data entry</label>
+        <Field label="Role"><select className="input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}><option value="recorder">Recorder</option><option value="user">User</option><option value="admin">Administrator</option></select></Field>
+        {f.role === 'recorder' && <Note kind="info">A recorder can only enter daily readings and change their own account. Their name is saved with every reading they enter.</Note>}
+        {f.role === 'user' && <label><input type="checkbox" checked={f.can_enter_data} onChange={(e) => setF({ ...f, can_enter_data: e.target.checked })} /> Allow daily data entry</label>}
         <div className="actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || problems.length > 0 || !f.password}>Create</button></div>
       </form>
     </Modal>

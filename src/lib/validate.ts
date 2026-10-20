@@ -1,7 +1,7 @@
 // Validation of a daily meter-reading entry (opening / closing).
 // Pure function: the UI passes everything it knows and shows the returned issues.
 
-import { isISODate } from './dates.ts';
+import { addDays, daysBetween, isISODate } from './dates.ts';
 import { computeMeterDay, round3 } from './calc.ts';
 import type { ConsumptionStatus, Meter, Reading } from './types.ts';
 
@@ -17,8 +17,11 @@ export interface EntryInput {
   meter: Pick<Meter, 'rollover_at' | 'unit' | 'name'>;
   openingText: string;
   closingText: string;
-  /** Closing reading of the previous calendar day for the same meter (null when none). */
+  /** Last closing reading saved before `date` for the same meter (null when the meter has no earlier reading:
+   *  only then is an opening reading asked for). */
   prevClosing: number | null;
+  /** Date of that last reading. When it is not the previous day, the new reading covers the days in between. */
+  prevDate?: string | null;
   /** Reading already stored for this meter and date (duplicate detection). */
   existing: Pick<Reading, 'opening' | 'closing'> | null;
   today: string;
@@ -42,6 +45,8 @@ export interface EntryResult {
   status: ConsumptionStatus | null;
   /** Value to store in `readings.opening` (null = follow the previous day's closing). */
   storeOpening: number | null;
+  /** Days covered by this reading (more than 1 after a gap). */
+  daysCovered: number;
   canSave: boolean;
 }
 
@@ -104,7 +109,14 @@ export function validateEntry(i: EntryInput): EntryResult {
   const effectiveOpening = opening ?? i.prevClosing;
 
   if (opening === null && i.prevClosing === null && closing !== null) {
-    err('opening_required', 'No reading exists for the previous day, so the opening reading must be entered.');
+    err('opening_required', 'This is the first reading of this meter, so enter its opening reading once. After that the opening is always the last closing reading.');
+  }
+
+  // After a gap the opening is the last closing, saved explicitly so the consumption is still calculated.
+  const gap = !!i.prevDate && i.prevClosing !== null && isISODate(i.date) && i.prevDate !== addDays(i.date, -1);
+  const daysCovered = gap ? daysBetween(i.prevDate as string, i.date) : 1;
+  if (gap && closing !== null) {
+    warn('gap', `No reading was saved since ${i.prevDate}: this consumption covers ${daysCovered} days.`);
   }
 
   let consumption: number | null = null;
@@ -137,7 +149,7 @@ export function validateEntry(i: EntryInput): EntryResult {
     if (consumption === 0) warn('zero', 'Consumption is zero – confirm the meter was really not running.');
   }
 
-  const storeOpening = opening !== null && opening !== i.prevClosing ? opening : null;
+  const storeOpening = gap ? effectiveOpening : opening !== null && opening !== i.prevClosing ? opening : null;
   if (i.existing) {
     const same = i.existing.closing === closing && (i.existing.opening ?? null) === storeOpening;
     if (same) err('duplicate_same', 'This exact reading is already saved.');
@@ -150,7 +162,7 @@ export function validateEntry(i: EntryInput): EntryResult {
     (w.code === 'duplicate' && i.confirmed.overwrite)));
 
   return {
-    errors, warnings, opening: effectiveOpening, closing, consumption, status, storeOpening,
+    errors, warnings, opening: effectiveOpening, closing, consumption, status, storeOpening, daysCovered,
     canSave: errors.length === 0 && !unconfirmed && closing !== null,
   };
 }

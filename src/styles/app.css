@@ -208,6 +208,8 @@ select.input { appearance: none; padding-right: 30px; cursor: pointer; backgroun
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .input.invalid { border-color: var(--negative); }
 .input:disabled { background: var(--raised); color: var(--muted); }
+.input[readonly] { background: var(--raised); color: var(--muted); }
+.input.sm, select.input.sm { height: 30px; padding: 0 8px; font-size: 13px; width: auto; }
 input[type='checkbox'], input[type='radio'] { accent-color: var(--text); width: 16px; height: 16px; }
 .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 20px; }
 .filters .field { min-width: 0; }

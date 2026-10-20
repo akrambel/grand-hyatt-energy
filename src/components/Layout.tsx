@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Camera, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
-import { useAuth, useIsAdmin } from '../store/auth.ts';
+import { useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
 import { useData } from '../store/data.ts';
 import { useSensors } from '../store/sensors.ts';
 import { useAvatar, AVATAR_TYPES } from '../store/avatar.ts';
@@ -34,7 +34,7 @@ export function UserAvatar({ size = 32, className }: { size?: number; className?
 }
 
 /** Photo, name and role at the bottom of the menu; the photo opens a small menu to add, change or remove it. */
-function UserMenu({ admin }: { admin: boolean }) {
+function UserMenu({ roleLabel }: { roleLabel: string }) {
   const profile = useAuth((s) => s.profile);
   const logout = useAuth((s) => s.logout);
   const { path, busy, upload, remove } = useAvatar();
@@ -53,7 +53,7 @@ function UserMenu({ admin }: { admin: boolean }) {
         <UserAvatar size={36} />
         <span className="cam" aria-hidden="true"><Camera size={11} /></span>
       </button>
-      <div className="who"><strong>{profile?.display_name}</strong><span>{admin ? 'Administrator' : 'User'}</span></div>
+      <div className="who"><strong>{profile?.display_name}</strong><span>{roleLabel}</span></div>
       <button className="icon-btn" onClick={() => { useAvatar.getState().clear(); void logout(); }} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
       <input ref={file} type="file" accept={AVATAR_TYPES.join(',')} hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
       {open && (
@@ -104,6 +104,9 @@ const QUICK_PERIODS = [
   { mode: 'mtd', short: 'MTD', name: 'Month to date', terms: 'mtd month to date' },
   { mode: 'wtd', short: 'WTD', name: 'Week to date', terms: 'wtd week to date' },
 ];
+/** Recorders only enter daily readings. */
+const RECORDER_PAGES = ['/entry', '/profile'];
+
 const QUICK_PAGES = NAV.filter((p) => ['/', '/energy', '/water', '/gas', '/chilled', '/costs'].includes(p.path));
 
 function GlobalSearch() {
@@ -150,6 +153,7 @@ export function Layout() {
   const profile = useAuth((s) => s.profile);
   const loadAvatar = useAvatar((s) => s.load);
   const admin = useIsAdmin();
+  const recorder = useIsRecorder();
   const { status, error, fy, setFy, load, subscribe, settings } = useData();
   const subscribeSensors = useSensors((s) => s.subscribe);
   const loc = useLocation();
@@ -163,9 +167,12 @@ export function Layout() {
 
   const groups = useMemo(() => {
     const m = new Map<string, typeof NAV>();
-    for (const n of NAV) { if (n.adminOnly && !admin) continue; m.set(n.group, [...(m.get(n.group) ?? []), n]); }
+    for (const n of NAV) {
+      if (n.adminOnly && !admin) continue;
+      if (recorder && !RECORDER_PAGES.includes(n.path)) continue;
+      m.set(n.group, [...(m.get(n.group) ?? []), n]); }
     return [...m.entries()];
-  }, [admin]);
+  }, [admin, recorder]);
 
   // Reporting years start with FY2026-27 (first year of the system) and end with the current fiscal year
   // (a fiscal year starts on 1 October). The next year appears automatically when it begins.
@@ -180,7 +187,7 @@ export function Layout() {
   return (
     <div className={clsx('app', sidebarCollapsed && 'collapsed')}>
       <aside className={clsx('sidebar', mobileNavOpen && 'open')} aria-label="Main navigation">
-        <NavLink to="/" className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
+        <NavLink to={recorder ? '/entry' : '/'} className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
           <Logo />
           <div className="name"><strong>Energy &amp; Utilities</strong><span>Engineering</span></div>
         </NavLink>
@@ -195,7 +202,7 @@ export function Layout() {
                 </NavLink>))}
             </div>))}
         </nav>
-        <UserMenu admin={admin} />
+        <UserMenu roleLabel={admin ? 'Administrator' : recorder ? 'Recorder' : 'User'} />
       </aside>
       <div className="main">
         <header className="header">
@@ -205,12 +212,12 @@ export function Layout() {
             {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
           <div className="crumb">{current ? <>{current.group} / <strong>{current.label}</strong></> : null}</div>
-          <GlobalSearch />
+          {!recorder && <GlobalSearch />}
           <div className="spacer" />
-          <select className="input desktop-only" value={fy} onChange={(e) => void setFy(Number(e.target.value))} aria-label="Reporting year">
+          {!recorder && <select className="input desktop-only" value={fy} onChange={(e) => void setFy(Number(e.target.value))} aria-label="Reporting year">
             {fyOptions.sort((a, b) => b - a).map((y) => <option key={y} value={y}>{fiscalLabel(y, settings.fiscalStartMonth)}</option>)}
-          </select>
-          <Notifications />
+          </select>}
+          {!recorder && <Notifications />}
           <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode" title="Light / dark">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
         </header>
         <div className="sheet">

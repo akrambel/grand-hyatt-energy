@@ -65,6 +65,19 @@ test('entry validation: happy path, missing, future, negative, decreasing', () =
   assert.ok(validateEntry(baseEntry({ closingText: '583.1234' })).errors.some((e) => e.code === 'too_many_decimals'));
 });
 
+test('entry validation: opening only for the first reading; gaps continue from the last closing', () => {
+  // First reading of a meter: the opening is required once.
+  const first = validateEntry(baseEntry({ prevClosing: null, prevDate: null, openingText: '500' }));
+  assert.ok(first.canSave); assert.equal(first.consumption, 83); assert.equal(first.storeOpening, 500);
+  // Normal day: no opening typed, the opening is yesterday's closing and nothing extra is stored.
+  const daily = validateEntry(baseEntry({ prevDate: '2026-10-11' }));
+  assert.ok(daily.canSave); assert.equal(daily.storeOpening, null); assert.equal(daily.daysCovered, 1);
+  // A missed day: the opening is still the last closing, stored explicitly, and the reading covers 3 days.
+  const gap = validateEntry(baseEntry({ prevDate: '2026-10-09' }));
+  assert.equal(gap.consumption, 83); assert.equal(gap.storeOpening, 500); assert.equal(gap.daysCovered, 3);
+  assert.ok(gap.warnings.some((w) => w.code === 'gap'));
+});
+
 test('entry validation: discontinuity, jump, duplicate need confirmation', () => {
   const d = validateEntry(baseEntry({ openingText: '10', closingText: '60' }));
   assert.ok(!d.canSave && d.warnings.some((w) => w.code === 'discontinuity'));

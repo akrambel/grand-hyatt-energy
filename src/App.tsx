@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth, useIsAdmin } from './store/auth.ts';
+import { useAuth, useIsAdmin, useIsRecorder } from './store/auth.ts';
 import { Layout } from './components/Layout.tsx';
 import { Loading } from './components/ui.tsx';
 import Login from './pages/Login.tsx';
@@ -27,8 +27,22 @@ function AdminOnly({ children }: { children: JSX.Element }) {
   return useIsAdmin() ? children : <Navigate to="/" replace />;
 }
 
+// Recorders only enter daily readings: Daily Entry and My Account. Everything else goes back to Daily Entry.
+function RecorderRoutes() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="entry" element={<DailyEntry />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/entry" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export default function App() {
   const { status, init } = useAuth();
+  const recorder = useIsRecorder();
   useEffect(() => { void init(); }, [init]);
 
   if (status === 'loading') return <div style={{ padding: 40 }}><Loading /></div>;
@@ -37,6 +51,7 @@ export default function App() {
   return (
     <HashRouter>
       <Suspense fallback={<div style={{ padding: 40 }}><Loading /></div>}>
+        {recorder ? <RecorderRoutes /> : (
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Overview />} />
@@ -61,6 +76,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
+        )}
       </Suspense>
     </HashRouter>
   );

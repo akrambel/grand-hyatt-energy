@@ -9,7 +9,7 @@ export interface AdminDeps {
   usernameExists(username: string): Promise<boolean>;
   createAuthUser(email: string, password: string): Promise<string>;
   deleteAuthUser(id: string): Promise<void>;
-  insertProfile(p: { id: string; username: string; display_name: string; role: 'admin' | 'user'; can_enter_data: boolean }): Promise<void>;
+  insertProfile(p: { id: string; username: string; display_name: string; role: 'admin' | 'user' | 'recorder'; can_enter_data: boolean }): Promise<void>;
   setPassword(id: string, password: string): Promise<void>;
   setActive(id: string, active: boolean): Promise<void>;
   /** Number of other active administrators (prevents locking everyone out). */
@@ -41,7 +41,7 @@ export async function handleAdminRequest(req: Request, deps: AdminDeps, cors: Re
     case 'create_user': {
       const username = String(body.username ?? '');
       const display = String(body.display_name ?? username).trim().slice(0, 80);
-      const role = body.role === 'admin' ? 'admin' : 'user';
+      const role = body.role === 'admin' || body.role === 'recorder' ? body.role : 'user';
       const password = String(body.password ?? '');
       if (!USERNAME_RE.test(username)) return json(400, { ok: false, error: 'Username: 3-32 letters, digits, dot, dash or underscore.' }, cors);
       const problems = passwordProblems(password);

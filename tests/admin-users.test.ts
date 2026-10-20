@@ -43,6 +43,14 @@ test('create_user validates username/password and creates auth + profile', async
   assert.equal(log[1][1].can_enter_data, true);
 });
 
+test('create_user accepts the recorder role and maps anything unknown to user', async () => {
+  const { d, log } = deps();
+  assert.equal((await call('admin-jwt', { action: 'create_user', username: 'Rec1', role: 'recorder', password: 'Abcdef12@x' }, d)).status, 200);
+  assert.equal(log[1][1].role, 'recorder');
+  assert.equal((await call('admin-jwt', { action: 'create_user', username: 'Odd1', role: 'superuser', password: 'Abcdef12@x' }, d)).status, 200);
+  assert.equal(log[3][1].role, 'user');
+});
+
 test('failed profile insert rolls back the auth user', async () => {
   const { d, log } = deps({ async insertProfile() { throw new Error('boom'); } });
   const res = await call('admin-jwt', { action: 'create_user', username: 'Newbie', password: 'Abcdef12@x' }, d);

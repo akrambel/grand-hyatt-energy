@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Save, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useData, saveReading, deleteReading } from '../store/data.ts';
-import { useCanEnter, useIsAdmin } from '../store/auth.ts';
+import { useAuth, useCanEnter, useIsAdmin } from '../store/auth.ts';
 import { supabase, friendlyError } from '../lib/supabase.ts';
 import { validateEntry } from '../lib/validate.ts';
 import type { EntryResult } from '../lib/validate.ts';
@@ -16,10 +16,11 @@ import type { Column } from '../components/DataTable.tsx';
 import { clsx } from '../lib/format.ts';
 import { toDisplay } from '../lib/units.ts';
 
-interface Stored { meter_id: string; reading_date: string; opening: number | null; closing: number | null }
+interface Stored { meter_id: string; reading_date: string; opening: number | null; closing: number | null; entered_by?: string | null }
+interface Last { date: string; closing: number }
 
 async function fetchStored(meterIds: string[], dates: string[]): Promise<Stored[]> {
-  const { data, error } = await supabase.from('readings').select('meter_id, reading_date, opening, closing').in('meter_id', meterIds).in('reading_date', dates);
+  const { data, error } = await supabase.from('readings').select('meter_id, reading_date, opening, closing, entered_by').in('meter_id', meterIds).in('reading_date', dates);
   if (error) throw new Error(error.message);
   // Stored values are in each meter's native unit; the form works in the display unit chosen in Settings.
   const meters = useData.getState().meterById;
@@ -28,8 +29,40 @@ async function fetchStored(meterIds: string[], dates: string[]): Promise<Stored[
     return {
       meter_id: r.meter_id as string, reading_date: r.reading_date as string,
       opening: r.opening === null ? null : toDisplay(Number(r.opening), f), closing: r.closing === null ? null : toDisplay(Number(r.closing), f),
+      entered_by: (r.entered_by as string | null) ?? null,
     };
   });
+}
+
+/**
+ * The last closing reading saved BEFORE `date` for each meter, whatever day it was.
+ * A meter with no earlier reading is missing from the map: only then is an opening reading asked for.
+ */
+async function fetchLastBefore(meterIds: string[], date: string): Promise<Map<string, Last>> {
+  const out = new Map<string, Last>();
+  if (!meterIds.length) return out;
+  const meters = useData.getState().meterById;
+  const keep = (rows: Array<Record<string, unknown>>) => {
+    for (const r of rows) {
+      const id = r.meter_id as string;
+      if (out.has(id) || r.closing === null) continue;
+      out.set(id, { date: r.reading_date as string, closing: toDisplay(Number(r.closing), meters.get(id)?.unitFactor ?? 1) as number });
+    }
+  };
+  // most meters were read recently: one query over the last 120 days
+  const { data, error } = await supabase.from('readings').select('meter_id, reading_date, closing')
+    .in('meter_id', meterIds).lt('reading_date', date).gte('reading_date', addDays(date, -120)).not('closing', 'is', null)
+    .order('reading_date', { ascending: false }).limit(5000);
+  if (error) throw new Error(error.message);
+  keep((data ?? []) as Array<Record<string, unknown>>);
+  // the rest: look further back, one meter at a time
+  for (const id of meterIds.filter((m) => !out.has(m))) {
+    const r = await supabase.from('readings').select('meter_id, reading_date, closing').eq('meter_id', id).lt('reading_date', date)
+      .not('closing', 'is', null).order('reading_date', { ascending: false }).limit(1);
+    if (r.error) throw new Error(r.error.message);
+    keep((r.data ?? []) as Array<Record<string, unknown>>);
+  }
+  return out;
 }
 
 function recentStats(meterId: string, date: string, meterDays: ReturnType<typeof useData.getState>['meterDays']) {
@@ -52,7 +85,7 @@ export default function DailyEntry() {
   const [mode, setMode] = useState<'single' | 'grid'>('single');
   return (
     <>
-      <PageHead title="Daily Consumption Entry" subtitle="Consumption = Closing reading − Opening reading (opening defaults to the previous day’s closing)" />
+      <PageHead title="Daily Consumption Entry" subtitle="Enter the closing reading. The opening is always the last closing reading; it is asked for only once, for a meter’s first reading." />
       {!canEnter && <Note kind="warn"><strong>Read-only access.</strong> Your account is not authorised to enter data. An administrator can enable this in Administration → Users.</Note>}
       <div className="tabs" role="tablist">
         <button className={clsx('tab', mode === 'single' && 'active')} onClick={() => setMode('single')}>Single meter</button>
@@ -80,7 +113,8 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
   const [note, setNote] = useState('');
   const [override, setOverride] = useState(false);
   const [confirmed, setConfirmed] = useState({ discontinuity: false, jump: false, overwrite: false });
-  const [stored, setStored] = useState<{ prev: number | null; existing: Stored | null; loading: boolean; error: string | null }>({ prev: null, existing: null, loading: false, error: null });
+  const [stored, setStored] = useState<{ prev: number | null; prevDate: string | null; existing: Stored | null; loading: boolean; error: string | null }>({ prev: null, prevDate: null, existing: null, loading: false, error: null });
+  const people = useData((s) => s.people);
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState<string | null>(null);
 
@@ -97,25 +131,27 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     if (!meterId || !date) return;
     let cancelled = false;
     setStored((s) => ({ ...s, loading: true, error: null }));
-    fetchStored([meterId], [date, addDays(date, -1)]).then((rows) => {
+    Promise.all([fetchStored([meterId], [date]), fetchLastBefore([meterId], date)]).then(([rows, last]) => {
       if (cancelled) return;
-      const prev = rows.find((r) => r.reading_date === addDays(date, -1))?.closing ?? null;
+      const lastOne = last.get(meterId) ?? null;
+      const prev = lastOne?.closing ?? null;
       const existing = rows.find((r) => r.reading_date === date) ?? null;
-      setStored({ prev, existing, loading: false, error: null });
-      setOpeningText(existing?.opening !== null && existing?.opening !== undefined ? String(existing.opening) : '');
-      setOverride(existing?.opening !== null && existing?.opening !== undefined);
+      setStored({ prev, prevDate: lastOne?.date ?? null, existing, loading: false, error: null });
+      setOpeningText(existing?.opening != null ? String(existing.opening) : '');
+      // an opening different from the last closing on a saved reading = a meter replacement (administrators)
+      setOverride(admin && prev !== null && existing?.opening != null && existing.opening !== prev);
       setClosingText(existing?.closing !== null && existing?.closing !== undefined ? String(existing.closing) : '');
       setConfirmed({ discontinuity: false, jump: false, overwrite: false });
-    }).catch((e) => { if (!cancelled) setStored({ prev: null, existing: null, loading: false, error: friendlyError(e) }); });
+    }).catch((e) => { if (!cancelled) setStored({ prev: null, prevDate: null, existing: null, loading: false, error: friendlyError(e) }); });
     return () => { cancelled = true; };
-  }, [meterId, date]);
+  }, [meterId, date, admin]);
 
   const recent = useMemo(() => (meter ? recentStats(meter.id, date, meterDays) : { avg: null, n: 0 }), [meter, date, meterDays]);
 
   const effectiveOpeningText = override ? openingText : (stored.prev !== null ? String(stored.prev) : openingText);
   const result = useMemo(() => meter ? validateEntry({
     date, meter, openingText: override || stored.prev === null ? openingText : '', closingText,
-    prevClosing: stored.prev, existing: stored.existing ? { opening: stored.existing.opening, closing: stored.existing.closing } : null,
+    prevClosing: stored.prev, prevDate: stored.prevDate, existing: stored.existing ? { opening: stored.existing.opening, closing: stored.existing.closing } : null,
     today, recentAvgDaily: recent.avg, recentSamples: recent.n, jumpFactor: settings.entry.jumpFactor, confirmed,
   }) : null, [meter, date, openingText, closingText, override, stored, today, recent, settings.entry.jumpFactor, confirmed]);
 
@@ -129,7 +165,7 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
       // advance to next meter in the list for fast entry
       const i = areaMeters.findIndex((m) => m.id === meter.id);
       if (i >= 0 && i < areaMeters.length - 1) setMeterId(areaMeters[i + 1].id);
-      else setStored((s) => ({ ...s, existing: { meter_id: meter.id, reading_date: date, opening: result.storeOpening, closing: result.closing } }));
+      else setStored((s) => ({ ...s, existing: { meter_id: meter.id, reading_date: date, opening: result.storeOpening, closing: result.closing, entered_by: useAuth.getState().profile?.id ?? null } }));
     } catch (e) { notify.error('Reading not saved', friendlyError(e)); } finally { setBusy(false); }
   };
 
@@ -144,6 +180,8 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     { key: 'c', header: 'Closing', num: true, value: (r) => r.closing, render: (r) => fmtNumber(r.closing, 3) },
     { key: 'u', header: 'Consumption', num: true, value: (r) => r.md?.consumption ?? null, render: (r) => fmtNumber(r.md?.consumption ?? null, 3) },
     { key: 's', header: 'Status', value: (r) => r.md?.status ?? '', render: (r) => <StatusPill kind={r.md?.status === 'ok' || r.md?.status === 'rollover' ? 'ok' : 'warn'}>{r.md?.status ?? 'N/A'}</StatusPill> },
+    { key: 'b', header: 'Entered by', value: (r) => (r.entered_by ? people.get(r.entered_by) ?? '' : r.source === 'import' ? 'Import' : ''),
+      render: (r) => (r.entered_by ? people.get(r.entered_by) ?? <span className="muted">Unknown</span> : <span className="muted">{r.source === 'import' ? 'Import' : '—'}</span>) },
     ...(admin ? [{ key: 'x', header: '', value: () => '', render: (r: (typeof recentRows)[number]) => <button className="btn sm danger" onClick={() => setDel(r.id ?? null)} aria-label="Delete reading"><Trash2 size={13} /></button> } as Column<(typeof recentRows)[number]>] : []),
   ];
 
@@ -174,9 +212,9 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
           <>
             <hr style={{ border: 0, borderTop: '1px solid var(--border)', margin: '16px 0' }} />
             {stored.error && <Note kind="bad">{stored.error}</Note>}
-            {stored.existing && <Note kind="info">A reading for this meter and date is already saved (closing {fmtNumber(stored.existing.closing, 3)} {meter.unit}). Saving will replace it.</Note>}
+            {stored.existing && <Note kind="info">A reading for this meter and date is already saved (closing {fmtNumber(stored.existing.closing, 3)} {meter.unit}{stored.existing.entered_by ? `, entered by ${people.get(stored.existing.entered_by) ?? 'another user'}` : ''}). Saving will replace it.</Note>}
             <div className="form-grid">
-              <Field label={`Opening reading (${meter.unit})`} hint={override ? 'Manual opening (e.g. meter replaced)' : stored.prev !== null ? `Previous day’s closing – ${formatDate(addDays(date, -1))}` : 'No previous-day reading – enter the opening reading'}>
+              <Field label={`Opening reading (${meter.unit})`} hint={override ? 'New meter’s starting value (meter replaced or reset)' : stored.prev !== null ? `Last closing reading – ${formatDate(stored.prevDate)}` : 'First reading of this meter – enter the opening once'}>
                 <input className="input mono" inputMode="decimal" value={override || stored.prev === null ? openingText : effectiveOpeningText} readOnly={!override && stored.prev !== null} disabled={disabled}
                   onChange={(e) => setOpeningText(e.target.value)} placeholder="e.g. 500" />
               </Field>
@@ -190,10 +228,10 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
                 </div>
               </Field>
             </div>
-            {stored.prev !== null && (
+            {admin && stored.prev !== null && (
               <label className="small" style={{ display: 'inline-flex', gap: 6, marginTop: 8 }}>
                 <input type="checkbox" checked={override} disabled={disabled} onChange={(e) => { setOverride(e.target.checked); if (e.target.checked && !openingText) setOpeningText(String(stored.prev)); }} />
-                Override opening reading (meter replaced / reset)
+                Meter replaced or reset: enter the new opening (administrators only)
               </label>)}
             {meter.rollover_at !== null && <p className="small muted">This meter rolls over at {fmtNumber(meter.rollover_at)} {meter.unit}; a drop in the reading near the limit is calculated as a rollover.</p>}
             <div className="field" style={{ marginTop: 10 }}><label>Note (optional)</label><input className="input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} disabled={disabled} /></div>
@@ -227,7 +265,8 @@ function GridEntry({ disabled }: { disabled: boolean }) {
   const [date, setDate] = useState(addDays(today, 0));
   const [utility, setUtility] = useState<Utility>('water');
   const [texts, setTexts] = useState<Record<string, string>>({});
-  const [stored, setStored] = useState<Record<string, { prev: number | null; existing: Stored | null }>>({});
+  const [stored, setStored] = useState<Record<string, { prev: number | null; prevDate: string | null; existing: Stored | null }>>({});
+  const [openings, setOpenings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
@@ -237,15 +276,18 @@ function GridEntry({ disabled }: { disabled: boolean }) {
     if (!rows.length) { setStored({}); return; }
     let cancelled = false;
     setLoading(true);
-    fetchStored(rows.map((m) => m.id), [date, addDays(date, -1)]).then((data) => {
+    const ids = rows.map((m) => m.id);
+    Promise.all([fetchStored(ids, [date]), fetchLastBefore(ids, date)]).then(([data, last]) => {
       if (cancelled) return;
-      const s: typeof stored = {}; const t: Record<string, string> = {};
+      const s: typeof stored = {}; const t: Record<string, string> = {}; const o: Record<string, string> = {};
       for (const m of rows) {
-        const prev = data.find((r) => r.meter_id === m.id && r.reading_date === addDays(date, -1))?.closing ?? null;
+        const l = last.get(m.id) ?? null;
         const existing = data.find((r) => r.meter_id === m.id && r.reading_date === date) ?? null;
-        s[m.id] = { prev, existing }; if (existing?.closing != null) t[m.id] = String(existing.closing);
+        s[m.id] = { prev: l?.closing ?? null, prevDate: l?.date ?? null, existing };
+        if (existing?.closing != null) t[m.id] = String(existing.closing);
+        if (!l && existing?.opening != null) o[m.id] = String(existing.opening);
       }
-      setStored(s); setTexts(t); setLoading(false);
+      setStored(s); setTexts(t); setOpenings(o); setLoading(false);
     }).catch((e) => { if (!cancelled) { setLoading(false); notify.error('Could not load readings', friendlyError(e)); } });
     return () => { cancelled = true; };
   }, [rows, date]);
@@ -258,14 +300,14 @@ function GridEntry({ disabled }: { disabled: boolean }) {
       const st = stored[m.id];
       const rs = recentStats(m.id, date, meterDays);
       out.set(m.id, validateEntry({
-        date, meter: m, openingText: '', closingText: text, prevClosing: st?.prev ?? null,
+        date, meter: m, openingText: st?.prev == null ? openings[m.id] ?? '' : '', closingText: text, prevClosing: st?.prev ?? null, prevDate: st?.prevDate ?? null,
         existing: st?.existing ? { opening: st.existing.opening, closing: st.existing.closing } : null,
         today, recentAvgDaily: rs.avg, recentSamples: rs.n, jumpFactor: settings.entry.jumpFactor,
         confirmed: { discontinuity: ok, jump: ok, overwrite: true },
       }));
     }
     return out;
-  }, [rows, texts, stored, date, today, meterDays, settings.entry.jumpFactor, ok]);
+  }, [rows, texts, openings, stored, date, today, meterDays, settings.entry.jumpFactor, ok]);
 
   const savable = [...results.entries()].filter(([, r]) => r.canSave);
   const blocked = [...results.entries()].filter(([, r]) => !r.canSave && !(r.errors.length === 1 && r.errors[0].code === 'duplicate_same'));
@@ -282,7 +324,7 @@ function GridEntry({ disabled }: { disabled: boolean }) {
     if (saved) notify.success(`${saved} reading${saved === 1 ? '' : 's'} saved`, formatDate(date));
     if (failed.length) notify.error(`${failed.length} reading(s) failed`, failed.slice(0, 3).join('; '));
     setDate((d) => d); // refresh stored values
-    setStored((s) => { const n = { ...s }; for (const [id, r] of savable) if (!failed.some((f) => f.startsWith(meters.find((m) => m.id === id)?.name ?? '\0'))) n[id] = { prev: s[id]?.prev ?? null, existing: { meter_id: id, reading_date: date, opening: r.storeOpening, closing: r.closing } }; return n; });
+    setStored((s) => { const n = { ...s }; for (const [id, r] of savable) if (!failed.some((f) => f.startsWith(meters.find((m) => m.id === id)?.name ?? '\0'))) n[id] = { prev: s[id]?.prev ?? null, prevDate: s[id]?.prevDate ?? null, existing: { meter_id: id, reading_date: date, opening: r.storeOpening, closing: r.closing } }; return n; });
   };
 
   return (
@@ -291,7 +333,7 @@ function GridEntry({ disabled }: { disabled: boolean }) {
         <Field label="Date"><input className="input" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} /></Field>
         <Field label="Utility type"><select className="input" value={utility} onChange={(e) => setUtility(e.target.value as Utility)} disabled={disabled}>{UTILITIES.map((u) => <option key={u} value={u}>{UTILITY_INFO[u].label}</option>)}</select></Field>
       </div>
-      <p className="small muted">Enter today’s closing reading for each meter. Opening = previous day’s closing. Empty rows are skipped.</p>
+      <p className="small muted">Enter the closing reading for each meter. The opening is the meter’s last closing reading; it is typed only for a meter’s first reading. Empty rows are skipped.</p>
       <div className="table-wrap"><table className="data">
         <thead><tr><th>Area</th><th>Meter</th><th className="num">Opening</th><th className="num">Closing ({UTILITY_INFO[utility].unit})</th><th className="num">Consumption</th><th>Status</th></tr></thead>
         <tbody>
@@ -300,7 +342,10 @@ function GridEntry({ disabled }: { disabled: boolean }) {
             return (
               <tr key={m.id} className={r && r.errors.length && r.errors[0].code !== 'duplicate_same' ? 'flag' : undefined}>
                 <td>{m.area}</td><td>{m.name}</td>
-                <td className="num">{st?.prev != null ? fmtNumber(st.prev, 3) : <span className="muted">N/A</span>}</td>
+                <td className="num">{st?.prev != null
+                  ? <>{fmtNumber(st.prev, 3)}{st.prevDate && st.prevDate !== addDays(date, -1) && <div className="small muted">{formatDate(st.prevDate)}</div>}</>
+                  : <input className="input mono" style={{ width: 120, textAlign: 'right' }} inputMode="decimal" placeholder="First reading" value={openings[m.id] ?? ''} disabled={disabled || loading}
+                      onChange={(e) => setOpenings({ ...openings, [m.id]: e.target.value })} aria-label={`Opening reading for ${m.name} (first reading)`} />}</td>
                 <td className="num"><input className="input mono" style={{ width: 130, textAlign: 'right' }} inputMode="decimal" value={texts[m.id] ?? ''} disabled={disabled || loading}
                   onChange={(e) => setTexts({ ...texts, [m.id]: e.target.value })} aria-label={`Closing reading for ${m.name}`} /></td>
                 <td className="num">{r?.consumption != null ? fmtAuto(r.consumption) : '—'}</td>

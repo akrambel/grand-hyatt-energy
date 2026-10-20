@@ -40,6 +40,8 @@ interface DataState {
   lpgHistory: LpgLevel[];
   alerts: AlertRow[];
   devices: Device[];
+  /** Display names of all staff accounts (id → name), for "entered by". */
+  people: Map<string, string>;
   // derived
   meterById: Map<string, Meter>;
   meterDays: Map<string, MeterDay>;
@@ -126,7 +128,7 @@ export const useData = create<DataState>((set, get) => ({
   loadedAt: null,
   meters: [], readings: [], metrics: [], tariffs: [], budgets: [],
   settings: DEFAULT_SETTINGS,
-  lpgLatest: [], lpgHistory: [], alerts: [], devices: [],
+  lpgLatest: [], lpgHistory: [], alerts: [], devices: [], people: new Map(),
   meterById: new Map(), meterDays: new Map(), totals: emptyTotals(), metricsMap: new Map(),
 
   load: async (fyArg) => {
@@ -140,7 +142,7 @@ export const useData = create<DataState>((set, get) => ({
       const range = fiscalRange(fy, settings.fiscalStartMonth);
       const from = addDays(range.start, -1); // previous day = opening of the first day
 
-      const [meterRows, readingRows, metricRows, tariffRows, budgetRows] = await Promise.all([
+      const [meterRows, readingRows, metricRows, tariffRows, budgetRows, peopleRows] = await Promise.all([
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('meters').select('*').order('utility').order('sort_order').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('readings')
           .select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at')
@@ -149,6 +151,7 @@ export const useData = create<DataState>((set, get) => ({
           .gte('metric_date', range.start).lte('metric_date', range.end).order('metric_date').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('tariffs').select('*').order('effective_from').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('budgets').select('*').range(a, b)),
+        fetchAll<Record<string, unknown>>((a, b) => supabase.from('profiles').select('id, display_name').range(a, b)).catch(() => []),
       ]);
       applyDisplayUnits(settings);
       const meters = meterRows.map(toMeter).map((m) => withDisplayUnit(m, settings));
@@ -157,6 +160,7 @@ export const useData = create<DataState>((set, get) => ({
       const metrics = metricRows.map(toMetric);
       set({
         settings, meters, readings, metrics,
+        people: new Map(peopleRows.map((p) => [p.id as string, (p.display_name as string) || '—'])),
         tariffs: tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string })),
         budgets: budgetRows.map((b) => ({
           fiscal_year: Number(b.fiscal_year), month: Number(b.month), kind: b.kind as BudgetRow['kind'],
