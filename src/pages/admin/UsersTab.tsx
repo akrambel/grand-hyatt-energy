@@ -22,18 +22,24 @@ async function callAdmin(body: Record<string, unknown>): Promise<{ id?: string }
 }
 
 type Role = Profile['role'];
+type UserRow = Profile & { is_owner?: boolean };
 const ROLE_LABEL: Record<Role, string> = { admin: 'Administrator', user: 'User', recorder: 'Recorder' };
 
 export default function UsersTab() {
   const me = useAuth((s) => s.profile);
-  const [users, setUsers] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [creating, setCreating] = useState(false);
   const [resetFor, setResetFor] = useState<Profile | null>(null);
   const [toggle, setToggle] = useState<Profile | null>(null);
+  const [removing, setRemoving] = useState<UserRow | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from('profiles').select('id, username, display_name, role, can_enter_data, active').order('username');
-    if (error) notify.error('Could not load users', friendlyError(error)); else setUsers((data ?? []) as Profile[]);
+    const cols = 'id, username, display_name, role, can_enter_data, active';
+    // is_owner arrives with migration 0008; without it the list still loads.
+    let res: { data: unknown[] | null; error: { message: string } | null } = await supabase.from('profiles').select(`${cols}, is_owner`).order('username');
+    if (res.error) res = await supabase.from('profiles').select(cols).order('username');
+    const { data, error } = res;
+    if (error) notify.error('Could not load users', friendlyError(error)); else setUsers((data ?? []) as UserRow[]);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -48,7 +54,7 @@ export default function UsersTab() {
       <Note kind="info"><strong>Administrators</strong> see everything and manage users and settings. <strong>Users</strong> view, search and export reports; tick <strong>Data entry</strong> to let them enter daily readings too. <strong>Recorders</strong> only see Daily Entry and My Account. Passwords are never displayed; only a reset is possible.</Note>
       <DataTable rows={users} rowKey={(u) => u.id} searchable columns={[
         { key: 'u', header: 'Username', value: (u) => u.username }, { key: 'n', header: 'Name', value: (u) => u.display_name },
-        { key: 'r', header: 'Role', value: (u) => u.role, render: (u) => u.id === me?.id ? ROLE_LABEL[u.role] :
+        { key: 'r', header: 'Role', value: (u) => u.role, render: (u) => u.id === me?.id || u.is_owner ? <>{ROLE_LABEL[u.role]}{u.is_owner && <span className="muted small"> · owner</span>}</> :
           <select className="input sm" aria-label={`Role of ${u.username}`} value={u.role} onChange={(e) => void patch(u, { role: e.target.value as Role })}>
             {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </select> },
@@ -56,8 +62,18 @@ export default function UsersTab() {
           <label><input type="checkbox" checked={u.can_enter_data} onChange={(e) => void patch(u, { can_enter_data: e.target.checked })} /> allowed</label> },
         { key: 'a', header: 'Status', value: (u) => (u.active ? 'Active' : 'Deactivated'), render: (u) => <StatusPill kind={u.active ? 'ok' : 'bad'}>{u.active ? 'Active' : 'Deactivated'}</StatusPill> },
         { key: 'x', header: '', value: () => '', render: (u) => <span className="actions"><button className="btn sm" onClick={() => setResetFor(u)}>Reset password</button>
-          <button className={u.active ? 'btn sm danger' : 'btn sm'} disabled={u.id === me?.id} onClick={() => setToggle(u)}>{u.active ? 'Deactivate' : 'Activate'}</button></span> },
+          <button className={u.active ? 'btn sm danger' : 'btn sm'} disabled={u.id === me?.id || u.is_owner} onClick={() => setToggle(u)}>{u.active ? 'Deactivate' : 'Activate'}</button>
+          {u.id !== me?.id && !u.is_owner && <button className="btn sm danger" onClick={() => setRemoving(u)}>Delete</button>}</span> },
       ]} />
+      {removing && <ConfirmDialog danger typeToConfirm={removing.username} title={`Delete ${removing.display_name || removing.username}?`}
+        message={`The account ${removing.username} is removed permanently and can no longer sign in. Readings this person entered are kept. To only block access for a while, use Deactivate instead.`}
+        confirmLabel="Delete user" onCancel={() => setRemoving(null)}
+        onConfirm={async () => {
+          const { error } = await supabase.rpc('admin_delete_user', { p_id: removing.id });
+          if (error) notify.error('User not deleted', /admin_delete_user/.test(error.message) ? 'Run migration 0008 in Supabase first.' : friendlyError(error));
+          else { notify.success('User deleted', removing.username); void load(); }
+          setRemoving(null);
+        }} />}
       {creating && <CreateUser onClose={() => { setCreating(false); void load(); }} />}
       {resetFor && <ResetPassword user={resetFor} onClose={() => setResetFor(null)} />}
       {toggle && <ConfirmDialog danger={toggle.active} title={toggle.active ? 'Deactivate user?' : 'Activate user?'} message={toggle.active ? `${toggle.username} will no longer be able to sign in.` : `${toggle.username} will be able to sign in again.`} confirmLabel={toggle.active ? 'Deactivate' : 'Activate'}

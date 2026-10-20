@@ -57,3 +57,34 @@ do $$ begin update public.profiles set role = 'boss' where id = '00000000-0000-0
 update public.profiles set active = false where role = 'admin' and id <> '00000000-0000-0000-0000-0000000000f2';
 do $$ begin update public.profiles set role = 'user' where id = '00000000-0000-0000-0000-0000000000f2'; raise notice 'FAIL last admin demoted';
   exception when check_violation then raise notice 'PASS last admin cannot be demoted'; end $$;
+
+-- 0008: deleting users
+insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000d1'), ('00000000-0000-0000-0000-0000000000d2'), ('00000000-0000-0000-0000-0000000000d3') on conflict do nothing;
+insert into public.profiles(id, username, display_name, role, can_enter_data, active, is_owner) values
+ ('00000000-0000-0000-0000-0000000000d1','akram_owner','Owner','admin',true,true,true),
+ ('00000000-0000-0000-0000-0000000000d2','temp_rec','Temp Recorder','recorder',false,true,false),
+ ('00000000-0000-0000-0000-0000000000d3','plain_user','Plain User','user',false,true,false) on conflict do nothing;
+update public.readings set entered_by = '00000000-0000-0000-0000-0000000000d2'
+ where reading_date = public.local_today() - 45 and meter_id = (select id from public.meters where code = 'TST-ROLL');
+-- a regular user cannot delete anyone
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d3');
+do $$ begin perform public.admin_delete_user('00000000-0000-0000-0000-0000000000d2'); raise notice 'FAIL user deleted someone';
+  exception when insufficient_privilege then raise notice 'PASS delete user: only administrators'; end $$;
+reset role;
+-- an administrator deletes the recorder; the reading stays
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f2');
+select public.admin_delete_user('00000000-0000-0000-0000-0000000000d2');
+do $$ begin perform public.admin_delete_user('00000000-0000-0000-0000-0000000000d1'); raise notice 'FAIL owner deleted';
+  exception when check_violation then raise notice 'PASS delete user: owner protected'; end $$;
+do $$ begin perform public.admin_delete_user('00000000-0000-0000-0000-0000000000f2'); raise notice 'FAIL deleted self';
+  exception when check_violation then raise notice 'PASS delete user: not yourself'; end $$;
+do $$ begin update public.profiles set active = false where id = '00000000-0000-0000-0000-0000000000d1'; raise notice 'FAIL owner deactivated';
+  exception when check_violation then raise notice 'PASS owner cannot be deactivated'; end $$;
+reset role;
+select case when not exists (select 1 from public.profiles where id = '00000000-0000-0000-0000-0000000000d2')
+             and not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-0000000000d2')
+  then 'PASS delete user: account and profile removed' else 'FAIL delete user' end;
+select case when r.closing = 13 and r.entered_by is null then 'PASS delete user: readings kept' else 'FAIL readings after user delete' end
+  from public.readings r join public.meters m on m.id = r.meter_id where m.code = 'TST-ROLL' and r.reading_date = public.local_today() - 45;
+select case when exists (select 1 from public.audit_log where action = 'DELETE_USER' and old_data->>'username' = 'temp_rec')
+  then 'PASS delete user: recorded in audit log' else 'FAIL no audit entry' end;

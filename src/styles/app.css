@@ -246,6 +246,7 @@ table.data th:hover { color: var(--text); }
 table.data td.num, table.data th.num { text-align: right; }
 table.data tbody tr { }
 table.data tbody tr:hover { background: var(--glass); }
+table.data tbody tr.selected { background: var(--accent-soft); }
 table.data tr.flag td { background: var(--pill-negative-bg); }
 .table-bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin: 10px 0; flex-wrap: wrap; }
 .pager { display: flex; align-items: center; gap: 8px; }
