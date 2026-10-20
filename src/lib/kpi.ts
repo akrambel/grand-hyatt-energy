@@ -159,3 +159,53 @@ export function costInRange(
   }
   return { cost: days === 0 ? null : round3(cost), days, daysWithoutTariff: missing, currency };
 }
+
+// ------------------------------------------------------- per guest forecast ----
+
+/** Utilities that have a budget (forecast) line in the workbook, and the name of that line. */
+export const BUDGET_FIELD = { energy: 'electricity', water: 'water', gas: 'gas' } as const;
+export type BudgetedUtility = keyof typeof BUDGET_FIELD;
+
+export interface GuestForecast {
+  utility: BudgetedUtility;
+  /** Actual consumption per guest night so far this month (days with both a total and a guest count). */
+  actual: number | null;
+  actualDays: number;
+  /** Forecast per guest night: the month's budgeted consumption ÷ budgeted guests (workbook budget block). */
+  forecast: number | null;
+  /** Same month of the previous year, when the workbook has it. */
+  previous: number | null;
+  /** (actual − forecast) ÷ forecast. */
+  vsForecast: number | null;
+  /** Month-end consumption if the average daily consumption so far continues; needs at least 3 days. */
+  projected: number | null;
+  /** The month's budgeted consumption. */
+  budgetTotal: number | null;
+}
+
+export function guestForecast(
+  utility: BudgetedUtility,
+  totals: Map<string, DayTotal>,
+  metrics: Map<string, DailyMetric>,
+  budgets: BudgetRow[],
+  fy: number,
+  month: { start: string; end: string; month: number; days: number },
+  upTo: string,
+): GuestForecast {
+  const field = BUDGET_FIELD[utility];
+  const end = upTo < month.end ? upTo : month.end;
+  const paired = pairedIntensity(totals, metrics, 'guests', month.start, end);
+  const b = budgetFor(budgets, fy, month.month, 'budget');
+  const p = budgetFor(budgets, fy - 1, month.month, 'previous') ?? budgetFor(budgets, fy, month.month, 'previous');
+  const forecast = b ? ratio(b[field], b.guests, 4) : null;
+  const previous = p ? ratio(p[field], p.guests, 4) : null;
+  let s = 0, n = 0;
+  for (const [date, t] of totals) if (date >= month.start && date <= end && t.total !== null) { s += t.total; n++; }
+  const projected = n >= 3 ? round3((s / n) * month.days) : null;
+  const actual = paired.value === null ? null : ratio(paired.consumption, paired.denominator, 4);
+  return {
+    utility, actual, actualDays: paired.days, forecast, previous,
+    vsForecast: actual !== null && forecast ? Math.round(((actual - forecast) / forecast) * 10000) / 10000 : null,
+    projected, budgetTotal: b?.[field] ?? null,
+  };
+}

@@ -37,12 +37,49 @@ export function parseStatus(text: unknown): RoomStatus | null {
   return STATUS_ALIASES[k] ?? null;
 }
 
+// ---------------------------------------------------------------- hotel rooms ----
+// Grand Hyatt The Red Sea room numbering, as given by engineering (2026-10-20):
+//   L00 001-095 except 053-057 (do not exist) = 90 · L01 101-195 = 95 · L02 201-275 = 75
+//   L03 301-362 = 62 · L04 401-436 = 36 · beach villas 901-910 = 10  →  368 rooms.
+export interface FloorDef { key: string; label: string; from: number; to: number; skip?: number[] }
+export const FLOORS: FloorDef[] = [
+  { key: 'L00', label: 'L00', from: 1, to: 95, skip: [53, 54, 55, 56, 57] },
+  { key: 'L01', label: 'L01', from: 101, to: 195 },
+  { key: 'L02', label: 'L02', from: 201, to: 275 },
+  { key: 'L03', label: 'L03', from: 301, to: 362 },
+  { key: 'L04', label: 'L04', from: 401, to: 436 },
+  { key: 'VIL', label: 'Beach villas', from: 901, to: 910 },
+];
+export const OTHER_FLOOR = 'Other';
+
+/** Room numbers are always three digits: 001, 095, 101 … 910. */
+const roomNo = (n: number): string => String(n).padStart(3, '0');
+
+export const HOTEL_ROOMS: string[] = FLOORS.flatMap((f) => {
+  const out: string[] = [];
+  for (let n = f.from; n <= f.to; n++) if (!f.skip?.includes(n)) out.push(roomNo(n));
+  return out;
+});
+const HOTEL_SET = new Set(HOTEL_ROOMS);
+export const isHotelRoom = (room: string): boolean => HOTEL_SET.has(room);
+
+/** Floor label of a room ("L02", "Beach villas"), or "Other" for numbers outside the hotel list. */
+export function floorOf(room: string): string {
+  if (!HOTEL_SET.has(room)) return OTHER_FLOOR;
+  const n = Number(room);
+  return FLOORS.find((f) => n >= f.from && n <= f.to)?.label ?? OTHER_FLOOR;
+}
+
+/** Rooms per floor in the hotel list, e.g. { L00: 90, … }. */
+export const FLOOR_COUNTS: Record<string, number> = Object.fromEntries(FLOORS.map((f) => [f.label, HOTEL_ROOMS.filter((r) => floorOf(r) === f.label).length]));
+
 const ROOM_RE = /^[A-Za-z0-9-]{1,12}$/;
 const RANGE_RE = /^(\d{1,6})-(\d{1,6})$/;
 
 export interface RoomListResult { rooms: string[]; invalid: string[]; duplicates: number }
 
-/** Reads a pasted list of room numbers: separated by spaces, commas, semicolons or new lines; "1101-1130" adds a range. */
+/** Reads a pasted list of room numbers: separated by spaces, commas, semicolons or new lines; "101-130" adds a range.
+ *  Leading zeros are kept: "001-010" gives 001 … 010. */
 export function parseRoomList(text: string): RoomListResult {
   const seen = new Set<string>();
   const rooms: string[] = [];
@@ -54,7 +91,8 @@ export function parseRoomList(text: string): RoomListResult {
     if (m && Number(m[1]) < Number(m[2])) {
       const a = Number(m[1]), b = Number(m[2]);
       if (b - a > 1000) { invalid.push(token); continue; }
-      for (let n = a; n <= b; n++) add(String(n));
+      const width = m[1].startsWith('0') ? m[1].length : 0;
+      for (let n = a; n <= b; n++) add(String(n).padStart(width, '0'));
       continue;
     }
     if (ROOM_RE.test(token)) add(token); else invalid.push(token);

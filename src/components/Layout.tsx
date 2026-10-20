@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
+import { Bell, Camera, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
 import { useAuth, useIsAdmin } from '../store/auth.ts';
 import { useData } from '../store/data.ts';
 import { useSensors } from '../store/sensors.ts';
+import { useAvatar, AVATAR_TYPES } from '../store/avatar.ts';
 import { supabase } from '../lib/supabase.ts';
 import { ENV, logoUrl } from '../config/env.ts';
 import { NAV } from './nav.ts';
@@ -18,7 +19,53 @@ export function Logo({ className }: { className?: string }) {
   return <img className={className} src={logoUrl()} alt={`${ENV.propertyName} logo`} onError={() => setFailed(true)} />;
 }
 
-const initials = (name: string | undefined): string => (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
+export const initials = (name: string | undefined): string => (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
+
+/** The signed-in user's photo, or their initials when there is none. */
+export function UserAvatar({ size = 32, className }: { size?: number; className?: string }) {
+  const profile = useAuth((s) => s.profile);
+  const url = useAvatar((s) => s.url);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [url]);
+  const style = { width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.36)) };
+  return url && !broken
+    ? <img className={clsx('avatar', className)} style={style} src={url} alt="" onError={() => setBroken(true)} />
+    : <span className={clsx('avatar', className)} style={style} aria-hidden="true">{initials(profile?.display_name)}</span>;
+}
+
+/** Photo, name and role at the bottom of the menu; the photo opens a small menu to add, change or remove it. */
+function UserMenu({ admin }: { admin: boolean }) {
+  const profile = useAuth((s) => s.profile);
+  const logout = useAuth((s) => s.logout);
+  const { path, busy, upload, remove } = useAvatar();
+  const [open, setOpen] = useState(false);
+  const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
+  const file = useRef<HTMLInputElement>(null);
+  const nav = useNavigate();
+  const pick = async (f: File | undefined) => {
+    if (!f || !profile) return;
+    try { await upload(profile.id, f); notify.success('Photo updated'); }
+    catch (e) { notify.error('Photo not saved', e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="side-foot" ref={ref}>
+      <button className="avatar-btn" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} title="Profile photo and account" disabled={busy}>
+        <UserAvatar size={36} />
+        <span className="cam" aria-hidden="true"><Camera size={11} /></span>
+      </button>
+      <div className="who"><strong>{profile?.display_name}</strong><span>{admin ? 'Administrator' : 'User'}</span></div>
+      <button className="icon-btn" onClick={() => { useAvatar.getState().clear(); void logout(); }} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
+      <input ref={file} type="file" accept={AVATAR_TYPES.join(',')} hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
+      {open && (
+        <div className="user-menu" role="menu">
+          <button role="menuitem" onClick={() => { setOpen(false); file.current?.click(); }}><Camera size={15} />{path ? 'Change photo' : 'Add a photo'}</button>
+          {path && <button role="menuitem" onClick={() => { setOpen(false); void remove().then(() => notify.success('Photo removed')).catch((e: Error) => notify.error('Photo not removed', e.message)); }}><Trash2 size={15} />Remove photo</button>}
+          <button role="menuitem" onClick={() => { setOpen(false); nav('/profile'); }}><UserCircle size={15} />My account</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Notifications() {
   const [open, setOpen] = useState(false);
@@ -101,7 +148,7 @@ function GlobalSearch() {
 export function Layout() {
   const { sidebarCollapsed, toggleSidebar, mobileNavOpen, setMobileNav, theme, toggleTheme } = useUi();
   const profile = useAuth((s) => s.profile);
-  const logout = useAuth((s) => s.logout);
+  const loadAvatar = useAvatar((s) => s.load);
   const admin = useIsAdmin();
   const { status, error, fy, setFy, load, subscribe, settings } = useData();
   const subscribeSensors = useSensors((s) => s.subscribe);
@@ -109,6 +156,7 @@ export function Layout() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (profile?.id) void loadAvatar(profile.id); }, [profile?.id, loadAvatar]);
   useEffect(() => subscribe(), [subscribe]);
   useEffect(() => subscribeSensors(), [subscribeSensors]);
   useEffect(() => { setMobileNav(false); }, [loc.pathname, setMobileNav]);
@@ -147,11 +195,7 @@ export function Layout() {
                 </NavLink>))}
             </div>))}
         </nav>
-        <div className="side-foot">
-          <span className="avatar" aria-hidden="true">{initials(profile?.display_name)}</span>
-          <div className="who"><strong>{profile?.display_name}</strong><span>{admin ? 'Administrator' : 'User'}</span></div>
-          <button className="icon-btn" onClick={() => void logout()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
-        </div>
+        <UserMenu admin={admin} />
       </aside>
       <div className="main">
         <header className="header">

@@ -5,6 +5,10 @@ import { ArrowDown, ArrowUp, Bell, Droplets, Flame, Gauge as GaugeIcon, MapPin, 
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../store/auth.ts';
 import { brandUrl } from '../config/env.ts';
+import { UserAvatar } from '../components/Layout.tsx';
+import { BUDGET_FIELD, guestForecast } from '../lib/kpi.ts';
+import type { BudgetedUtility } from '../lib/kpi.ts';
+import { fiscalMonths } from '../lib/dates.ts';
 import { useData } from '../store/data.ts';
 import { useSensors } from '../store/sensors.ts';
 import { useCanEnter } from '../store/auth.ts';
@@ -138,6 +142,17 @@ export default function Overview() {
   }, [totals, sel, readingDay]);
   const readCount = cells.filter((c) => c.day?.total != null).length;
 
+  // Per guest night this month: actual so far against the workbook forecast (budget ÷ budgeted guests).
+  const budgets = useData((s) => s.budgets);
+  const forecastMonth = useMemo(() => {
+    const ref = readingDay ?? today;
+    return fiscalMonths(fy, settings.fiscalStartMonth).find((m) => ref >= m.start && ref <= m.end) ?? null;
+  }, [readingDay, today, fy, settings.fiscalStartMonth]);
+  const perGuest = useMemo(() => forecastMonth
+    ? (Object.keys(BUDGET_FIELD) as BudgetedUtility[]).map((u) => guestForecast(u, totals[u], metricsMap, budgets, fy, forecastMonth, readingDay ?? today))
+    : [], [forecastMonth, totals, metricsMap, budgets, fy, readingDay, today]);
+  const hasForecast = perGuest.some((g) => g.forecast !== null);
+
   const months = useMemo(() => {
     const per = Object.fromEntries(UTILITIES.map((u) => [u, monthlySeries(totals[u], fy, settings.fiscalStartMonth)])) as Record<Utility, ReturnType<typeof monthlySeries>>;
     return per.energy.map((m, i) => ({ key: m.key, label: m.label, start: m.start, end: m.end, values: UTILITIES.map((u) => per[u][i].value) }))
@@ -174,6 +189,7 @@ export default function Overview() {
   return (
     <>
       <section className="greet">
+        <UserAvatar size={64} className="greet-avatar" />
         <div>
           <p className="hello">{greeting(new Date().getHours())}</p>
           <h1>{firstName || 'Overview'}</h1>
@@ -326,7 +342,7 @@ export default function Overview() {
         </div>
       </div>
 
-      <div className="grid g2 stretch">
+      <div className="grid g3 stretch">
         <div className="card">
           <div className="card-head"><h3>Water by section</h3><Link className="link-btn" to="/water">Water</Link></div>
           <ul className="list-rows">
@@ -349,6 +365,36 @@ export default function Overview() {
           </dl>
         </div>
 
+        <div className="card">
+          <div className="card-head"><h3>Per guest night{forecastMonth ? ` · ${forecastMonth.label}` : ''}</h3><Link className="link-btn" to="/budget">Budget</Link></div>
+          <table className="data overview-table">
+            <thead><tr><th>Utility</th><th className="num">Actual</th><th className="num">Forecast</th><th className="num">vs forecast</th></tr></thead>
+            <tbody>
+              {perGuest.map((g) => {
+                const u = UTILITY_INFO[g.utility].unit;
+                return (
+                  <tr key={g.utility}>
+                    <td>{UTILITY_INFO[g.utility].short}</td>
+                    <td className="num">{g.actual === null ? <span className="na">—</span> : <>{fmtNumber(g.actual, 2)} <span className="muted small">{u}</span></>}</td>
+                    <td className="num">{g.forecast === null ? <span className="na">—</span> : <>{fmtNumber(g.forecast, 2)} <span className="muted small">{u}</span></>}</td>
+                    <td className="num">{g.vsForecast === null ? <span className="na">—</span> : <span className={clsx('pill', Math.abs(g.vsForecast) < 0.05 ? '' : g.vsForecast > 0 ? 'bad' : 'ok')}>{g.vsForecast > 0 ? '+' : ''}{fmtNumber(g.vsForecast * 100, 1)}%</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {hasForecast
+            ? <p className="small muted" style={{ margin: '12px 0 0' }}>Forecast = the month's budgeted consumption ÷ budgeted guests (workbook budget block). Actual uses only days with both a reading and a guest count ({perGuest[0]?.actualDays ?? 0} days).</p>
+            : <p className="small muted" style={{ margin: '12px 0 0' }}>No forecast for this month in the workbook budget block yet, so only the actual is shown.</p>}
+          {perGuest.some((g) => g.projected !== null) && (
+            <dl className="kv" style={{ marginTop: 8 }}>
+              {perGuest.filter((g) => g.projected !== null).map((g) => (
+                <div key={g.utility}><dt>{UTILITY_INFO[g.utility].short} at month end</dt>
+                  <dd>{fmtAuto(g.projected)}<small>{UTILITY_INFO[g.utility].unit}</small>{g.budgetTotal !== null && <small> · budget {fmtAuto(g.budgetTotal)}</small>}</dd></div>
+              ))}
+            </dl>
+          )}
+        </div>
       </div>
 
       <div className="grid g-main stretch">

@@ -354,7 +354,7 @@ insert into public.rooms (room_number, sort_order) values ('1001', 1), ('1002', 
 select pg_temp.t_fails($$insert into public.rooms (room_number) values ('bad room!')$$, 'invalid room number is rejected', '23514');
 reset role;
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
-select pg_temp.t_assert((select count(*) from public.rooms) = 3, 'viewer can read the room list');
+select pg_temp.t_assert((select count(*) from public.rooms where room_number in ('1001', '1002', '1003')) = 3, 'viewer can read the room list');
 select pg_temp.t_fails($$insert into public.rooms (room_number) values ('2001')$$, 'viewer cannot add rooms', '42501');
 select pg_temp.t_fails($$insert into public.room_readings (room_number, reading_date, closing, status) values ('1001', public.local_today() - 1, 10, 'occupied')$$,
   'viewer without permission cannot enter room readings', '42501');

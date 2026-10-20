@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Camera, Trash2 } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../store/auth.ts';
 import { supabase, friendlyError } from '../lib/supabase.ts';
@@ -6,6 +7,8 @@ import { passwordProblems } from '../lib/password.ts';
 import { notify } from '../store/ui.ts';
 import { usernameToEmail } from '../config/env.ts';
 import { Field, Note, PageHead } from '../components/ui.tsx';
+import { UserAvatar } from '../components/Layout.tsx';
+import { useAvatar, AVATAR_TYPES } from '../store/avatar.ts';
 
 export default function Profile() {
   const profile = useAuth((s) => s.profile);
@@ -14,6 +17,14 @@ export default function Profile() {
   const [again, setAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const problems = next ? passwordProblems(next) : [];
+  const { path, busy: photoBusy, upload, remove } = useAvatar();
+  const file = useRef<HTMLInputElement>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const pick = async (f: File | undefined) => {
+    if (!f || !profile) return;
+    setPhotoError(null);
+    try { await upload(profile.id, f); notify.success('Photo updated'); } catch (e) { setPhotoError(e instanceof Error ? e.message : String(e)); }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,6 +48,19 @@ export default function Profile() {
       <PageHead title="My Account" subtitle="Your profile and password" />
       <div className="grid g2">
         <div className="card">
+          <div className="profile-photo">
+            <UserAvatar size={88} />
+            <div>
+              <h3>{profile?.display_name}</h3>
+              <p className="small muted">Your photo appears in the menu and on the Overview. It is cropped to a square and reduced to 256 × 256 px before it is saved; only signed-in staff can see it.</p>
+              <div className="actions">
+                <button className="btn primary sm" disabled={photoBusy} onClick={() => file.current?.click()}><Camera size={14} />{path ? 'Change photo' : 'Add a photo'}</button>
+                {path && <button className="btn sm" disabled={photoBusy} onClick={() => { setPhotoError(null); void remove().catch((e: Error) => setPhotoError(e.message)); }}><Trash2 size={14} />Remove</button>}
+              </div>
+              <input ref={file} type="file" accept={AVATAR_TYPES.join(',')} hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
+            </div>
+          </div>
+          {photoError && <Note kind="bad">{photoError} If this keeps happening, the database update for photos (migration 0006) may not be applied yet.</Note>}
           <h3>Profile</h3>
           <table className="data"><tbody>
             <tr><th>Name</th><td>{profile?.display_name}</td></tr>

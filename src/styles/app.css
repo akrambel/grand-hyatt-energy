@@ -102,6 +102,17 @@ code { font: 13px/1 ui-monospace, 'SFMono-Regular', Menlo, monospace; background
 .side-foot .who strong { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-foot .who span { font-size: 12px; color: var(--muted); }
 .avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--glass-strong); color: var(--brand-deep); box-shadow: 0 0 0 1px var(--glass-edge); }
+.avatar { object-fit: cover; }
+.side-foot { position: relative; }
+.avatar-btn { position: relative; flex: none; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.avatar-btn:disabled { cursor: progress; opacity: .6; }
+.avatar-btn .cam { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; box-shadow: 0 0 0 2px var(--frame); }
+.profile-photo { display: flex; gap: 18px; align-items: flex-start; padding-bottom: 18px; margin-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.profile-photo p { margin: 4px 0 12px; max-width: 46ch; }
+.user-menu { position: absolute; left: 8px; bottom: 60px; width: 210px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 16px 40px rgba(25, 22, 21, .16); padding: 6px; z-index: 60; }
+.user-menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; background: none; border-radius: 10px; cursor: pointer; color: var(--text); text-align: left; }
+.user-menu button svg { color: var(--muted); }
+.user-menu button:hover, .user-menu button:focus-visible { background: var(--raised); }
 .collapsed .nav-group, .collapsed .nav-link span, .collapsed .nav-link .count, .collapsed .side-brand .name, .collapsed .side-foot .who { display: none; }
 .collapsed .nav-group { display: block; height: 12px; padding: 0; overflow: hidden; color: transparent; }
 .collapsed .nav-link { justify-content: center; padding: 0; }
@@ -258,6 +269,8 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
 /* ── overview ───────────────────────────────────────────────────────────── */
 /* greeting, as on Domus: a light salutation over the name */
 .greet { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 4px 0 22px; }
+.greet { align-items: center; }
+.greet .greet-avatar { box-shadow: 0 0 0 3px var(--glass-strong), 0 8px 20px rgba(60, 40, 32, .12); }
 .greet .hello { margin: 0; font-size: 22px; line-height: 28px; font-weight: 300; color: var(--muted); }
 .greet h1 { font-size: 44px; line-height: 50px; font-weight: 400; letter-spacing: -0.02em; }
 .greet .finding { margin: 8px 0 0; color: var(--muted); max-width: 64ch; }
@@ -409,6 +422,7 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
   .round-cell .r-value { font-size: 24px; line-height: 32px; }
   .greet h1 { font-size: 34px; line-height: 40px; }
   .greet .hello { font-size: 18px; }
+  .greet .greet-avatar { width: 48px !important; height: 48px !important; }
   .ink-card .ink-value { font-size: 44px; line-height: 48px; }
   .round { gap: 8px; }
   .chart-box { height: 200px; } .chart-box.tall { height: 240px; }

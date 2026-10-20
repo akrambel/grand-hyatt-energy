@@ -143,3 +143,21 @@ test('budget "actual" block equals the workbook formulas (rooms, occupancy avera
   assert.ok(pi.value !== null && pi.days > 10);
   assert.ok(!map.get('2026-10-05')?.guests, 'test data has no guests on 5 Oct');
 });
+
+test('guestForecast: actual per guest night against the budget forecast', async () => {
+  const { guestForecast } = await import('../src/lib/kpi.ts');
+  const totals = new Map([['2026-10-01', { total: 400 }], ['2026-10-02', { total: 500 }], ['2026-10-03', { total: 600 }], ['2026-10-04', { total: 300 }]] as Array<[string, never]>);
+  const metrics = new Map([['2026-10-01', { guests: 200 }], ['2026-10-02', { guests: 250 }], ['2026-10-03', { guests: null }]] as Array<[string, never]>);
+  const budgets = [{ fiscal_year: 2026, month: 10, kind: 'budget', electricity: 62000, guests: 31000, water: null, gas: null, rooms_sold: null, occupancy_rate: null }] as never[];
+  const month = { start: '2026-10-01', end: '2026-10-31', month: 10, days: 31 };
+  const g = guestForecast('energy', totals, metrics, budgets, 2026, month, '2026-10-04');
+  assert.equal(g.actual, 2);             // (400 + 500) / (200 + 250); day 3 has no guests, day 4 no metric row
+  assert.equal(g.actualDays, 2);
+  assert.equal(g.forecast, 2);           // 62000 / 31000
+  assert.equal(g.vsForecast, 0);
+  assert.equal(g.projected, 13950);      // average 450 / day × 31 days
+  assert.equal(g.budgetTotal, 62000);
+  const w = guestForecast('water', totals, metrics, budgets, 2026, month, '2026-10-02');
+  assert.equal(w.forecast, null);        // no water budget → no forecast, never invented
+  assert.equal(w.projected, null);       // fewer than 3 days → no projection
+});

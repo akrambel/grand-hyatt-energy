@@ -12,3 +12,4 @@ for f in supabase/migrations/*.sql; do echo "applying $f"; psql_ -f "$f" >/dev/n
 for f in supabase/migrations/*.sql; do psql_ -f "$f" >/dev/null; done
 echo "migrations applied twice without errors"
 psql_ -f tests/db/10_security_and_logic.sql 2>&1 | grep -E "PASS|FAIL|ERROR|ALL DATABASE" 
+psql_ -f tests/db/20_photos_rooms.sql 2>&1 | grep -E "PASS|FAIL|ERROR"

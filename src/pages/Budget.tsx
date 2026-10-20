@@ -9,9 +9,13 @@ import { Field, Note, PageHead } from '../components/ui.tsx';
 import { actualByMonth, budgetFor, variance } from '../lib/kpi.ts';
 import { fmtNumber, fmtPercent, fmtSigned } from '../lib/format.ts';
 
-type MetricKey = 'electricity' | 'water' | 'gas' | 'roomsSold' | 'guests' | 'occupancy';
+type MetricKey = 'electricity' | 'water' | 'gas' | 'roomsSold' | 'guests' | 'occupancy' | 'electricityPg' | 'waterPg' | 'gasPg';
+type BudgetSrc = { electricity?: number | null; water?: number | null; gas?: number | null; rooms_sold?: number | null; guests?: number | null; occupancy_rate?: number | null };
+const PER_GUEST: Partial<Record<MetricKey, 'electricity' | 'water' | 'gas'>> = { electricityPg: 'electricity', waterPg: 'water', gasPg: 'gas' };
+const perGuest = (v: number | null | undefined, g: number | null | undefined): number | null => (v == null || g == null || g <= 0 ? null : v / g);
 const METRICS: Array<{ key: MetricKey; label: string; unit: string }> = [
   { key: 'electricity', label: 'Electricity', unit: 'kWh' }, { key: 'water', label: 'Water', unit: 'm³' }, { key: 'gas', label: 'Gas', unit: 'L' },
+  { key: 'electricityPg', label: 'Electricity per guest night', unit: 'kWh' }, { key: 'waterPg', label: 'Water per guest night', unit: 'm³' }, { key: 'gasPg', label: 'Gas per guest night', unit: 'L' },
   { key: 'roomsSold', label: 'Rooms sold', unit: 'rooms' }, { key: 'guests', label: 'Guests', unit: 'guests' }, { key: 'occupancy', label: 'Occupancy rate', unit: '%' },
 ];
 
@@ -23,17 +27,19 @@ export default function Budget() {
   const rows = useMemo(() => actual.map((a) => {
     const b = budgetFor(budgets, fy, a.month, 'budget');
     const p = budgetFor(budgets, fy - 1, a.month, 'previous') ?? budgetFor(budgets, fy, a.month, 'previous');
-    const pick = (src: { electricity?: number | null; water?: number | null; gas?: number | null; rooms_sold?: number | null; guests?: number | null; occupancy_rate?: number | null } | null) => {
+    const pg = PER_GUEST[metric];
+    const pick = (src: BudgetSrc | null) => {
       if (!src) return null;
+      if (pg) return perGuest(src[pg], src.guests);
       return metric === 'roomsSold' ? src.rooms_sold ?? null : metric === 'occupancy' ? src.occupancy_rate ?? null : (src[metric as 'electricity'] ?? null);
     };
-    const act = metric === 'roomsSold' ? a.roomsSold : metric === 'occupancy' ? a.occupancyAvg : (a[metric as 'electricity'] as number | null);
+    const act = pg ? perGuest(a[pg], a.guests) : metric === 'roomsSold' ? a.roomsSold : metric === 'occupancy' ? a.occupancyAvg : (a[metric as 'electricity'] as number | null);
     const bud = pick(b), prev = pick(p);
     return { label: a.label, actual: act, budget: bud, previous: prev, vsBudget: variance(act, bud), vsPrev: variance(act, prev) };
   }), [actual, budgets, fy, metric]);
 
   const info = METRICS.find((m) => m.key === metric)!;
-  const fmt = (v: number | null) => (metric === 'occupancy' ? fmtPercent(v) : fmtNumber(v, 0));
+  const fmt = (v: number | null) => (metric === 'occupancy' ? fmtPercent(v) : fmtNumber(v, PER_GUEST[metric] ? 2 : 0));
   const hasBudget = budgets.some((b) => b.kind === 'budget' && b.fiscal_year === fy);
   const chart = rows.map((r) => { const f = metric === 'occupancy' ? 100 : 1; return { label: r.label.split(' ')[0], Actual: r.actual === null ? null : r.actual * f, Budget: r.budget === null ? null : r.budget * f, Previous: r.previous === null ? null : r.previous * f }; });
 
@@ -41,7 +47,7 @@ export default function Budget() {
     { key: 'm', header: 'Month', value: (r) => r.label },
     { key: 'a', header: 'Actual', num: true, value: (r) => r.actual, render: (r) => fmt(r.actual) },
     { key: 'b', header: 'Budget', num: true, value: (r) => r.budget, render: (r) => fmt(r.budget) },
-    { key: 'd', header: 'Δ vs budget', num: true, value: (r) => r.vsBudget.difference, render: (r) => (r.vsBudget.difference === null ? 'N/A' : metric === 'occupancy' ? `${fmtSigned(r.vsBudget.difference * 100, 1)} pts` : fmtSigned(r.vsBudget.difference, 0)) },
+    { key: 'd', header: 'Δ vs budget', num: true, value: (r) => r.vsBudget.difference, render: (r) => (r.vsBudget.difference === null ? 'N/A' : metric === 'occupancy' ? `${fmtSigned(r.vsBudget.difference * 100, 1)} pts` : fmtSigned(r.vsBudget.difference, PER_GUEST[metric] ? 2 : 0)) },
     { key: 'dp', header: '% vs budget', num: true, value: (r) => r.vsBudget.percent, render: (r) => (r.vsBudget.percent === null ? 'N/A' : `${fmtSigned(r.vsBudget.percent * 100, 1)} %`) },
     { key: 'p', header: 'Previous period', num: true, value: (r) => r.previous, render: (r) => fmt(r.previous) },
     { key: 'pp', header: '% vs previous', num: true, value: (r) => r.vsPrev.percent, render: (r) => (r.vsPrev.percent === null ? 'N/A' : `${fmtSigned(r.vsPrev.percent * 100, 1)} %`) },
