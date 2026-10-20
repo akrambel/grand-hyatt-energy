@@ -16,6 +16,7 @@ export default function DevicesTab() {
   const [key, setKey] = useState<{ device: string; key: string } | null>(null);
   const [rotate, setRotate] = useState<Device | null>(null);
   const [del, setDel] = useState<Device | null>(null);
+  const [edit, setEdit] = useState<{ d: Device; name: string; location: string } | null>(null);
   const idOk = /^[A-Za-z0-9_-]{3,40}$/.test(f.id);
 
   const register = async () => {
@@ -41,12 +42,21 @@ export default function DevicesTab() {
           { key: 'ls', header: 'Last seen', value: (d) => d.last_seen_at, render: (d) => (d.last_seen_at ? formatDateTimeLocal(d.last_seen_at, settings.timezone) : 'never') },
           { key: 'fw', header: 'Firmware', value: (d) => d.firmware_version },
           { key: 'ac', header: 'Active', value: (d) => (d.active ? 'Yes' : 'No'), render: (d) => <input type="checkbox" checked={d.active} aria-label={`Active ${d.name}`} onChange={async (e) => { const { error } = await supabase.from('devices').update({ active: e.target.checked }).eq('id', d.id); if (error) notify.error('Update failed', friendlyError(error)); else void reloadDevices(); }} /> },
-          { key: 'x', header: '', value: () => '', render: (d) => <span className="actions"><button className="btn sm" onClick={() => setRotate(d)}>New key</button><button className="btn sm danger" onClick={() => setDel(d)}>Delete</button></span> }]} /></div>
+          { key: 'x', header: '', value: () => '', render: (d) => <span className="actions"><button className="btn sm" onClick={() => setEdit({ d, name: d.name, location: d.location ?? '' })}>Edit location</button><button className="btn sm" onClick={() => setRotate(d)}>New key</button><button className="btn sm danger" onClick={() => setDel(d)}>Delete</button></span> }]} /></div>
       {key && <Modal title="Device API key" onClose={() => setKey(null)} actions={<button className="btn primary" onClick={() => setKey(null)}>I have saved it</button>}>
         <Note kind="warn"><strong>This key is shown only once.</strong> Copy it into the firmware file <code>secrets.h</code> (never commit that file). If it is lost, generate a new key.</Note>
         <p>Device: <code>{key.device}</code></p>
         <div className="input mono" style={{ wordBreak: 'break-all', userSelect: 'all' }}>{key.key}</div>
         <button className="btn" style={{ marginTop: 8 }} onClick={() => { void navigator.clipboard?.writeText(key.key).then(() => notify.success('Copied')).catch(() => notify.error('Copy failed – select and copy manually')); }}><Copy size={14} />Copy</button></Modal>}
+      {edit && <Modal title={`Edit device – ${edit.d.device_id}`} onClose={() => setEdit(null)} actions={<><button className="btn" onClick={() => setEdit(null)}>Cancel</button>
+        <button className="btn primary" disabled={!edit.name.trim()} onClick={async () => {
+          const { error } = await supabase.from('devices').update({ name: edit.name.trim(), location: edit.location.trim() || null }).eq('id', edit.d.id);
+          if (error) notify.error('Device not updated', friendlyError(error)); else { notify.success('Device updated', edit.name.trim()); setEdit(null); await reloadDevices(); }
+        }}>Save</button></>}>
+        <Field label="Location" hint="Where the sensor is installed. The Live Environment page shows this."><input className="input" autoFocus value={edit.location} placeholder="e.g. Engineering office" onChange={(e) => setEdit({ ...edit, location: e.target.value })} /></Field>
+        <div style={{ marginTop: 12 }} /><Field label="Name"><input className="input" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
+        <p className="small muted">The device ID and API key do not change, so the firmware keeps working.</p>
+      </Modal>}
       {rotate && <ConfirmDialog danger title="Generate a new key?" message={`The current key of “${rotate.name}” stops working immediately. The firmware must be updated with the new key.`} confirmLabel="Generate" onCancel={() => setRotate(null)}
         onConfirm={async () => { const { data, error } = await supabase.rpc('rotate_device_key', { p_device_id: rotate.device_id }); if (error) notify.error('Failed', friendlyError(error)); else setKey({ device: rotate.device_id, key: data as string }); setRotate(null); }} />}
       {del && <ConfirmDialog danger typeToConfirm={del.device_id} title="Delete device?" message={`Deletes “${del.name}” and ALL of its stored sensor readings. This cannot be undone.`} confirmLabel="Delete device" onCancel={() => setDel(null)}
