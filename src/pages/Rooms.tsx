@@ -18,7 +18,7 @@ import { formatDate, monthShortName, parseISO } from '../lib/dates.ts';
 import { friendlyError } from '../lib/supabase.ts';
 import { notify } from '../store/ui.ts';
 
-const COLORS = { occupied: '#14a39b', vacant: '#e8892d', other: '#7a6a66', unknown: '#c9bdb4' } as const;
+const COLORS = { occupied: '#1d6fa5', vacant: '#9cc3e0', other: '#9b958e', unknown: '#e2ddd6' } as const;
 const STATE_TEXT: Record<string, string> = { ok: 'OK', rollover: 'Rollover', negative: 'Lower than previous day', missing_closing: 'No reading', missing_opening: 'No previous reading', no_reading: 'No data' };
 
 export default function Rooms() {
@@ -133,15 +133,15 @@ export default function Rooms() {
 
       <div className="grid g2">
         <ChartCard title={`Daily consumption by room status (${unit})`} chartId="rooms-daily" hasData={chartDaily.some((d) => d.total !== null)}>
-          <BarChart data={chartDaily}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+          <BarChart data={chartDaily}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
             <Bar dataKey="occupied" name="Occupied" stackId="a" fill={COLORS.occupied} /><Bar dataKey="vacant" name="Vacant" stackId="a" fill={COLORS.vacant} />
             <Bar dataKey="other" name="OOO / OOS / House use" stackId="a" fill={COLORS.other} /><Bar dataKey="unknown" name="Status not set" stackId="a" fill={COLORS.unknown} /></BarChart>
         </ChartCard>
         <ChartCard title={`Average per room-day by status (${unit})`} chartId="rooms-average" hasData={avgChart.length > 0}>
-          <BarChart data={avgChart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="value" name={unit} fill="#14a39b" /></BarChart>
+          <BarChart data={avgChart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="value" name={unit} fill="#1d6fa5" /></BarChart>
         </ChartCard>
         <ChartCard title={`Top 10 rooms – total in period (${unit})`} chartId="rooms-top" hasData={top.length > 0}>
-          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="total" name={unit} fill="#1f7fb8" /></BarChart>
+          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid horizontal={false} stroke="#ebe8e3" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="total" name={unit} fill="#1d6fa5" /></BarChart>
         </ChartCard>
       </div>
 

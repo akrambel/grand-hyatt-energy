@@ -60,8 +60,8 @@ export default function Budget() {
       {!hasBudget && <Note kind="warn"><strong>No budget values for this year.</strong> The budget block of the workbook is empty; fill it in Excel and re-import, or the budget columns remain N/A.</Note>}
       <div style={{ marginBottom: 16 }}>
         <ChartCard title={`${info.label} – actual vs budget vs previous (${info.unit})`} hasData={chart.some((c) => c.Actual !== null || c.Budget !== null || c.Previous !== null)}>
-          <BarChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={70} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Bar dataKey="Actual" fill="#a51a2d" radius={[4, 4, 0, 0]} /><Bar dataKey="Budget" fill="#d9a038" radius={[4, 4, 0, 0]} /><Bar dataKey="Previous" fill="#b9a9a3" radius={[4, 4, 0, 0]} /></BarChart>
+          <BarChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={70} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Bar dataKey="Actual" fill="#1d6fa5" radius={[2, 2, 0, 0]} /><Bar dataKey="Budget" fill="#9b958e" radius={[2, 2, 0, 0]} /><Bar dataKey="Previous" fill="#cfcac3" radius={[2, 2, 0, 0]} /></BarChart>
         </ChartCard>
       </div>
       <div className="card"><DataTable rows={rows} columns={cols} rowKey={(r) => r.label} searchable={false} pageSizes={[12]} defaultPageSize={12} /></div>

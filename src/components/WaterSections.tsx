@@ -9,7 +9,7 @@ import type { WaterSection } from '../lib/waterSections.ts';
 import { UTILITY_INFO } from '../lib/types.ts';
 import { eachDay, monthShortName, parseISO } from '../lib/dates.ts';
 
-const SECTION_COLOR: Record<string, string> = { standard: '#1f7fb8', hot_water: '#e8892d', irrigation: '#14a39b' };
+const SECTION_COLOR: Record<string, string> = { standard: '#1d6fa5', hot_water: '#0f3f63', irrigation: '#9cc3e0' };
 
 /** Sections of the water total for a period (shared by the Water page, Overview and reports). */
 export function useWaterSections(start: string, end: string): WaterSection[] {

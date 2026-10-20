@@ -53,7 +53,7 @@ export default function Costs() {
       </div>
       <div className="grid g2">
         <ChartCard title={`Monthly cost (${currency})`} hasData={monthly.some((m) => UTILITIES.some((u) => m[u] !== null))}>
-          <BarChart data={monthly}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={70} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+          <BarChart data={monthly}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={70} /><Tooltip contentStyle={tooltipStyle} /><Legend />
             {UTILITIES.map((u) => <Bar key={u} dataKey={u} name={UTILITY_INFO[u].label} stackId="c" fill={UTILITY_COLOR[u]} />)}</BarChart>
         </ChartCard>
         <div className="card"><h3>Tariffs in force</h3>

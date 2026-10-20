@@ -76,14 +76,14 @@ export default function Monthly() {
       <div className="grid g2">
         {(['energy', 'water', 'gas', 'chilled'] as Utility[]).map((u) => (
           <ChartCard key={u} title={`Daily ${UTILITY_INFO[u].label} (${UTILITY_INFO[u].unit})`} hasData={days.some((d) => d[u] !== null)}>
-            <BarChart data={days}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={16} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey={u} name={UTILITY_INFO[u].unit} fill={UTILITY_COLOR[u]} radius={[3, 3, 0, 0]} /></BarChart>
+            <BarChart data={days}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={16} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey={u} name={UTILITY_INFO[u].unit} fill={UTILITY_COLOR[u]} radius={[2, 2, 0, 0]} /></BarChart>
           </ChartCard>))}
         <ChartCard title="Temperature (manual) & occupancy" hasData={days.some((d) => d.temp !== null || d.occ !== null)}>
-          <LineChart data={days.map((d) => ({ ...d, occ: d.occ === null ? null : Math.round(d.occ * 1000) / 10 }))}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={16} /><YAxis yAxisId="l" tick={axisStyle} width={40} /><YAxis yAxisId="r" orientation="right" tick={axisStyle} width={40} domain={[0, 100]} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Line yAxisId="l" dataKey="temp" name="Temp °C" stroke="#e8892d" dot={false} strokeWidth={2} /><Line yAxisId="r" dataKey="occ" name="Occupancy %" stroke="#a51a2d" dot={false} strokeWidth={2} /></LineChart>
+          <LineChart data={days.map((d) => ({ ...d, occ: d.occ === null ? null : Math.round(d.occ * 1000) / 10 }))}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={16} /><YAxis yAxisId="l" tick={axisStyle} width={40} /><YAxis yAxisId="r" orientation="right" tick={axisStyle} width={40} domain={[0, 100]} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Line yAxisId="l" dataKey="temp" name="Temp °C" stroke="#9b958e" dot={false} strokeWidth={2} /><Line yAxisId="r" dataKey="occ" name="Occupancy %" stroke="#1d6fa5" dot={false} strokeWidth={2} /></LineChart>
         </ChartCard>
         <ChartCard title={`Area breakdown – ${UTILITY_INFO[area].label}`} hasData={areas.length > 0} actions={<select className="input" style={{ width: 'auto' }} value={area} onChange={(e) => setArea(e.target.value as Utility)} aria-label="Utility for area chart">{UTILITIES.map((u) => <option key={u} value={u}>{UTILITY_INFO[u].label}</option>)}</select>}>
-          <BarChart data={areas.slice(0, 12)} layout="vertical" margin={{ left: 40 }}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" dataKey="area" tick={axisStyle} width={120} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="total" fill={UTILITY_COLOR[area]} radius={[0, 4, 4, 0]} /></BarChart>
+          <BarChart data={areas.slice(0, 12)} layout="vertical" margin={{ left: 40 }}><CartesianGrid horizontal={false} stroke="#ebe8e3" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="area" tick={axisStyle} width={120} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="total" fill={UTILITY_COLOR[area]} radius={[0, 2, 2, 0]} /></BarChart>
         </ChartCard>
       </div>
       <div className="card" style={{ marginTop: 16 }}><h3>Daily values</h3>

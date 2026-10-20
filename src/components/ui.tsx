@@ -65,12 +65,14 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger
   );
 }
 
-export function KpiCard({ label, value, unit, sub, color, icon }: { label: string; value: string | null; unit?: string; sub?: string; color?: string; icon?: ReactNode }) {
+/** A KPI cell for the divided `.kpis` strip: label over value, unit as a grey suffix. `icon` and `color` are
+ *  accepted for older callers but not drawn: KPIs are type, not tiles. Missing data is a grey dash, never a guess. */
+export function KpiCard({ label, value, unit, sub }: { label: string; value: string | null; unit?: string; sub?: string; color?: string; icon?: ReactNode }) {
   const na = value === null || value === NA;
   return (
-    <div className="kpi" style={color ? ({ ['--kpi-color' as string]: color } as React.CSSProperties) : undefined}>
-      <div className="label">{icon}{label}</div>
-      <div className={clsx('value', na && 'na')}>{na ? 'No data available' : value}{!na && unit && <span className="unit">{unit}</span>}</div>
+    <div className="kpi">
+      <div className="label">{label}</div>
+      <div className={clsx('value', na && 'na')} title={na ? 'No data available' : undefined}>{na ? '— No data' : value}{!na && unit && <span className="unit">{unit}</span>}</div>
       {sub && <div className="sub">{sub}</div>}
     </div>
   );
@@ -100,7 +102,16 @@ export function PageHead({ title, subtitle, children }: { title: string; subtitl
   );
 }
 
-export function Loading() { return <div className="grid" aria-busy="true"><div className="skeleton" /><div className="skeleton" /></div>; }
+/** Loading keeps the final layout: a title bar, a KPI strip and two panels as flat grey blocks, no shimmer. */
+export function Loading() {
+  return (
+    <div aria-busy="true" aria-label="Loading">
+      <div className="skeleton" style={{ height: 32, width: 220, marginBottom: 24 }} />
+      <div className="skeleton" style={{ height: 96, marginBottom: 16 }} />
+      <div className="grid g-main"><div className="skeleton" style={{ height: 300 }} /><div className="skeleton" style={{ height: 300 }} /></div>
+    </div>
+  );
+}
 
 /** Closes a popup when clicking outside of it. */
 export function useClickOutside<T extends HTMLElement>(onOutside: () => void) {

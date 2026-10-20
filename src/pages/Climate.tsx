@@ -98,8 +98,8 @@ export default function Climate() {
       </div>
       <div style={{ marginBottom: 16 }}>
         <ChartCard title="Average daily temperature by source (°C)" hasData={chart.some((c) => c['Manual entry'] !== null || c['Live sensor (AHT20)'] !== null || c['External weather'] !== null)} tall>
-          <LineChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={44} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Line dataKey="Manual entry" stroke="#1f7fb8" dot={false} strokeWidth={2} /><Line dataKey="Live sensor (AHT20)" stroke="#1f8a5b" dot={false} strokeWidth={2} /><Line dataKey="External weather" stroke="#e8892d" dot={false} strokeDasharray="5 4" strokeWidth={2} /></LineChart>
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={44} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Line dataKey="Manual entry" stroke="#6b6560" dot={false} strokeWidth={2} /><Line dataKey="Live sensor (AHT20)" stroke="#1d6fa5" dot={false} strokeWidth={2} /><Line dataKey="External weather" stroke="#9b958e" dot={false} strokeDasharray="5 4" strokeWidth={2} /></LineChart>
         </ChartCard>
       </div>
       {canEnter && <MetricForm today={today} />}

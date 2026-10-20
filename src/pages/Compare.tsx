@@ -44,8 +44,8 @@ export default function Compare() {
           { key: 'p', header: '% change', num: true, value: (r) => r.pct, render: (r) => (r.pct === null ? NA : `${fmtSigned(r.pct * 100)} %`) }]} />
           <p className="small muted">Occupancy: {formatDate(a)} {occA === null ? NA : `${(occA * 100).toFixed(1)} %`} · {formatDate(b)} {occB === null ? NA : `${(occB * 100).toFixed(1)} %`}</p></div>
         <ChartCard title="Relative comparison (% of Day B)" hasData={rows.some((r) => r.pct !== null)}>
-          <BarChart data={rows.filter((r) => r.pct !== null).map((r) => ({ name: r.label, change: Math.round((r.pct as number) * 1000) / 10 }))}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} unit="%" width={50} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Bar dataKey="change" name="Change vs Day B (%)" fill={UTILITY_COLOR.energy} radius={[4, 4, 0, 0]} /></BarChart>
+          <BarChart data={rows.filter((r) => r.pct !== null).map((r) => ({ name: r.label, change: Math.round((r.pct as number) * 1000) / 10 }))}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} unit="%" width={50} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Bar dataKey="change" name="Change vs Day B (%)" fill={UTILITY_COLOR.energy} radius={[2, 2, 0, 0]} /></BarChart>
         </ChartCard>
       </div>
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
@@ -12,11 +12,25 @@ import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
 import { clsx } from '../lib/format.ts';
 import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
 
-export function Logo() {
+export function Logo({ className }: { className?: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
-  return <img src={logoUrl()} alt={`${ENV.propertyName} logo`} onError={() => setFailed(true)} />;
+  return <img className={className} src={logoUrl()} alt={`${ENV.propertyName} logo`} onError={() => setFailed(true)} />;
 }
+
+/** The product's mark: a meter dial drawn in ink with one needle in the data hue. */
+export function Mark({ size = 32 }: { size?: number }) {
+  return (
+    <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="8" fill="var(--text)" />
+      <path d="M8.5 20.5a7.5 7.5 0 1 1 15 0" fill="none" stroke="var(--surface)" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16 20.5l4.6-5.6" stroke="#5aa6dc" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="16" cy="20.5" r="1.8" fill="var(--surface)" />
+    </svg>
+  );
+}
+
+const initials = (name: string | undefined): string => (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
 
 function Notifications() {
   const [open, setOpen] = useState(false);
@@ -33,7 +47,7 @@ function Notifications() {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button className="icon-btn" onClick={() => setOpen(!open)} aria-label={`Notifications (${unread.length} unread)`}>
-        <Bell size={18} />{unread.length > 0 && <span className="badge">{unread.length > 99 ? '99+' : unread.length}</span>}
+        <Bell size={17} />{unread.length > 0 && <span className="badge">{unread.length > 99 ? '99+' : unread.length}</span>}
       </button>
       {open && (
         <div className="drawer">
@@ -41,11 +55,11 @@ function Notifications() {
           {unread.slice(0, 12).map((a) => (
             <div className="item" key={a.id}>
               <div><span className={clsx('pill', a.severity === 'critical' ? 'bad' : a.severity === 'warning' ? 'warn' : 'info')}>{a.title}</span></div>
-              {a.message && <div className="small">{a.message}</div>}
+              {a.message && <div style={{ marginTop: 6 }}>{a.message}</div>}
               <div className="small muted">{timeAgo(a.created_at)}</div>
-              <button className="btn sm" style={{ marginTop: 6 }} onClick={() => void ack(a.id)}>Acknowledge</button>
+              <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void ack(a.id)}>Acknowledge</button>
             </div>))}
-          <div className="item"><button className="btn sm" onClick={() => { setOpen(false); nav('/alerts'); }}>All alerts</button></div>
+          <div className="item"><button className="link-btn" onClick={() => { setOpen(false); nav('/alerts'); }}>View all alerts</button></div>
         </div>)}
     </div>
   );
@@ -63,6 +77,12 @@ function GlobalSearch() {
   const meters = useData((s) => s.meters);
   const admin = useIsAdmin();
   const ref = useClickOutside<HTMLDivElement>(() => setQ(''));
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); inputRef.current?.focus(); } if (e.key === 'Escape') setQ(''); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
   const hits = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (n.length < 2) return [];
@@ -80,10 +100,11 @@ function GlobalSearch() {
   return (
     <div className="search" ref={ref}>
       <Search size={16} />
-      <input aria-label="Global search" placeholder="Search pages, meters, MTD, WTD…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input ref={inputRef} aria-label="Global search" placeholder="Search pages, meters, MTD, WTD" value={q} onChange={(e) => setQ(e.target.value)} />
+      <kbd aria-hidden="true">Ctrl K</kbd>
       {hits.length > 0 && (
         <div className="search-results">
-          {hits.map((h) => <a key={h.key} href={`#${h.to}`} onClick={(e) => { e.preventDefault(); nav(h.to); setQ(''); }}>{h.label} <span className="small muted">— {h.sub}</span></a>)}
+          {hits.map((h) => <a key={h.key} href={`#${h.to}`} onClick={(e) => { e.preventDefault(); nav(h.to); setQ(''); }}><span>{h.label}</span><span className="small muted">{h.sub}</span></a>)}
         </div>)}
     </div>
   );
@@ -117,47 +138,56 @@ export function Layout() {
   const fyOptions = Array.from({ length: Math.max(1, thisFy - FIRST_FY + 1) }, (_, i) => thisFy - i);
   if (!fyOptions.includes(fy)) fyOptions.push(fy);
 
+  const current = NAV.find((n) => (n.path === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.path)));
+  const openAlerts = useData((s) => s.alerts.filter((a) => !a.resolved_at && !a.acknowledged_at).length);
+
   return (
     <div className={clsx('app', sidebarCollapsed && 'collapsed')}>
       <aside className={clsx('sidebar', mobileNavOpen && 'open')} aria-label="Main navigation">
+        <NavLink to="/" className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
+          <Mark />
+          <div className="name"><strong>Energy &amp; Utilities</strong><span>{ENV.propertyName}</span></div>
+        </NavLink>
         <nav>
           {groups.map(([g, items]) => (
             <div key={g}>
               <div className="nav-group">{g}</div>
               {items.map((n) => (
                 <NavLink key={n.path} to={n.path} end={n.path === '/'} className={({ isActive }) => clsx('nav-link', isActive && 'active')} title={n.label}>
-                  <n.icon size={19} /><span>{n.label}</span>
+                  <n.icon size={16} strokeWidth={1.75} /><span>{n.label}</span>
+                  {n.path === '/alerts' && openAlerts > 0 && <span className="count">{openAlerts}</span>}
                 </NavLink>))}
             </div>))}
         </nav>
+        <div className="side-foot">
+          <span className="avatar" aria-hidden="true">{initials(profile?.display_name)}</span>
+          <div className="who"><strong>{profile?.display_name}</strong><span>{admin ? 'Administrator' : 'User'}</span></div>
+          <button className="icon-btn" onClick={() => void logout()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
+        </div>
       </aside>
       <div className="main">
         <header className="header">
           <button className="icon-btn menu-btn" onClick={() => setMobileNav(!mobileNavOpen)} aria-label="Open menu"><Menu size={18} /></button>
-          <div className="brand">
-            <Logo />
-            <div className="title">{ENV.propertyName}<small>{ENV.appName}</small></div>
-          </div>
-          <button className="icon-btn desktop-only" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          <span className="mobile-title">{current?.label ?? 'Energy & Utilities'}</span>
+          <button className="icon-btn desktop-only collapse-btn" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
-          <div className="spacer" />
+          <div className="crumb">{current ? <>{current.group} / <strong>{current.label}</strong></> : null}</div>
           <GlobalSearch />
-          <select className="input desktop-only" style={{ width: 'auto' }} value={fy} onChange={(e) => void setFy(Number(e.target.value))} aria-label="Reporting year">
+          <div className="spacer" />
+          <select className="input desktop-only" value={fy} onChange={(e) => void setFy(Number(e.target.value))} aria-label="Reporting year">
             {fyOptions.sort((a, b) => b - a).map((y) => <option key={y} value={y}>{fiscalLabel(y, settings.fiscalStartMonth)}</option>)}
           </select>
           <Notifications />
-          <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode">{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
-          <div className="desktop-only small" style={{ textAlign: 'right', lineHeight: 1.2 }}>
-            <strong>{profile?.display_name}</strong><br /><span className="muted">{admin ? 'Administrator' : 'User'}</span>
-          </div>
-          <button className="icon-btn" onClick={() => void logout()} aria-label="Sign out" title="Sign out"><LogOut size={18} /></button>
+          <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode" title="Light / dark">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
         </header>
-        <main className="page" id="content">
-          {status === 'error' && <Note kind="bad"><strong>Data could not be loaded.</strong> {error} <button className="btn sm" onClick={() => void load()}>Retry</button></Note>}
-          {status === 'loading' && <Loading />}
-          {status !== 'loading' && <Outlet />}
-        </main>
+        <div className="sheet">
+          <main className="page" id="content">
+            {status === 'error' && <Note kind="bad"><strong>Data could not be loaded.</strong> {error} <button className="btn sm" onClick={() => void load()}>Retry</button></Note>}
+            {status === 'loading' && <Loading />}
+            {status !== 'loading' && <Outlet />}
+          </main>
+        </div>
       </div>
       <Toasts />
     </div>

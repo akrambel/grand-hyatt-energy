@@ -134,19 +134,19 @@ export default function Live() {
 
       <div className="grid g2">
         <ChartCard title="Temperature (°C) – AHT20 vs BMP280" hasData={chart.some((c) => c['AHT20 temp (°C)'] !== null || c['BMP280 temp (°C)'] !== null)}>
-          <LineChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={44} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Line dataKey="AHT20 temp (°C)" stroke="#a51a2d" dot={false} strokeWidth={2} /><Line dataKey="BMP280 temp (°C)" stroke="#e8892d" dot={false} strokeDasharray="4 3" />
-            {th.temperature.enabled && th.temperature.max !== null && <ReferenceLine y={th.temperature.max} stroke="#a51a2d" strokeDasharray="2 4" />}
-            {th.temperature.enabled && th.temperature.min !== null && <ReferenceLine y={th.temperature.min} stroke="#1f7fb8" strokeDasharray="2 4" />}</LineChart>
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={44} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Line dataKey="AHT20 temp (°C)" stroke="#1d6fa5" dot={false} strokeWidth={2} /><Line dataKey="BMP280 temp (°C)" stroke="#9b958e" dot={false} strokeDasharray="4 3" />
+            {th.temperature.enabled && th.temperature.max !== null && <ReferenceLine y={th.temperature.max} stroke="#c4242a" strokeDasharray="3 3" />}
+            {th.temperature.enabled && th.temperature.min !== null && <ReferenceLine y={th.temperature.min} stroke="#6b6560" strokeDasharray="3 3" />}</LineChart>
         </ChartCard>
         <ChartCard title="Relative humidity (%)" hasData={chart.some((c) => c['Humidity (%)'] !== null)}>
-          <LineChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={[0, 100]} width={40} /><Tooltip contentStyle={tooltipStyle} />
-            <Line dataKey="Humidity (%)" stroke="#1f7fb8" dot={false} strokeWidth={2} />
-            {th.humidity.enabled && th.humidity.max !== null && <ReferenceLine y={th.humidity.max} stroke="#a51a2d" strokeDasharray="2 4" />}
-            {th.humidity.enabled && th.humidity.min !== null && <ReferenceLine y={th.humidity.min} stroke="#1f7fb8" strokeDasharray="2 4" />}</LineChart>
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={[0, 100]} width={40} /><Tooltip contentStyle={tooltipStyle} />
+            <Line dataKey="Humidity (%)" stroke="#1d6fa5" dot={false} strokeWidth={2} />
+            {th.humidity.enabled && th.humidity.max !== null && <ReferenceLine y={th.humidity.max} stroke="#c4242a" strokeDasharray="3 3" />}
+            {th.humidity.enabled && th.humidity.min !== null && <ReferenceLine y={th.humidity.min} stroke="#6b6560" strokeDasharray="3 3" />}</LineChart>
         </ChartCard>
         <ChartCard title="Atmospheric pressure (hPa)" hasData={chart.some((c) => c['Pressure (hPa)'] !== null)}>
-          <LineChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={52} /><Tooltip contentStyle={tooltipStyle} /><Line dataKey="Pressure (hPa)" stroke="#6b4e9b" dot={false} strokeWidth={2} /></LineChart>
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={32} /><YAxis tick={axisStyle} domain={['auto', 'auto']} width={52} /><Tooltip contentStyle={tooltipStyle} /><Line dataKey="Pressure (hPa)" stroke="#1d6fa5" dot={false} strokeWidth={2} /></LineChart>
         </ChartCard>
         <div className="card"><h3>Range statistics (raw readings)</h3>
           {raw.length === 0 ? <p className="muted">Raw statistics are shown for ranges up to 7 days with data. Use the summary table below for longer ranges.</p> :
