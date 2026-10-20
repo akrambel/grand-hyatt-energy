@@ -91,20 +91,20 @@ export default function UtilityPage({ utility }: { utility: Utility }) {
       {utility === 'water' && <WaterSectionsPanel sections={sections} start={period.start} end={period.end} />}
       <div className="grid g2" style={utility === 'water' ? { marginTop: 16 } : undefined}>
         <ChartCard title={`Daily consumption (${info.unit})`} hasData={chart.some((c) => c.value !== null)}>
-          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Line dataKey="value" name={`Consumption (${info.unit})`} stroke={UTILITY_COLOR[utility]} strokeWidth={2} dot={false} connectNulls={false} />
-            <Line dataKey="baseline" name="Typical (median of previous days)" stroke="#8a8a8a" strokeDasharray="4 4" dot={false} connectNulls={false} />
-            {anomalies.map((a) => <ReferenceDot key={a.date} x={chart.find((c) => c.date === a.date)?.label} y={a.value} r={4} fill="#c4242a" stroke="#fff" />)}
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            <Line isAnimationActive={false} dataKey="value" name={`Consumption (${info.unit})`} stroke={UTILITY_COLOR[utility]} strokeWidth={2} dot={false} connectNulls={false} />
+            <Line isAnimationActive={false} dataKey="baseline" name="Typical (median of previous days)" stroke="#8a8a8a" strokeDasharray="4 4" dot={false} connectNulls={false} />
+            {anomalies.map((a) => <ReferenceDot key={a.date} x={chart.find((c) => c.date === a.date)?.label} y={a.value} r={4} fill="#b4500f" stroke="#fff" />)}
           </LineChart>
         </ChartCard>
         <ChartCard title={`Monthly totals – ${fy}-${String(fy + 1).slice(2)} (${info.unit})`} hasData={monthly.some((m) => m.value !== null)}>
-          <BarChart data={monthly}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="value" name={info.unit} fill={UTILITY_COLOR[utility]} radius={[2, 2, 0, 0]} /></BarChart>
+          <BarChart data={monthly}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="value" name={info.unit} fill={UTILITY_COLOR[utility]} radius={[2, 2, 0, 0]} /></BarChart>
         </ChartCard>
         <ChartCard title="Consumption by area" hasData={areas.length > 0}>
           <PieChart><Pie data={areas} dataKey="total" nameKey="area" innerRadius={86} outerRadius={100} paddingAngle={1} stroke="none" isAnimationActive={false}>{areas.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}</Pie><Tooltip contentStyle={tooltipStyle} /><Legend iconType="circle" iconSize={8} /></PieChart>
         </ChartCard>
         <ChartCard title="Area ranking" hasData={areas.length > 0}>
-          <BarChart data={areas.slice(0, 12)} layout="vertical" margin={{ left: 40 }}><CartesianGrid horizontal={false} stroke="#ebe8e3" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="area" tick={axisStyle} width={120} /><Tooltip contentStyle={tooltipStyle} /><Bar dataKey="total" name={info.unit} fill={UTILITY_COLOR[utility]} radius={[0, 2, 2, 0]} /></BarChart>
+          <BarChart data={areas.slice(0, 12)} layout="vertical" margin={{ left: 40 }}><CartesianGrid horizontal={false} stroke="#efe7df" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="area" tick={axisStyle} width={120} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="total" name={info.unit} fill={UTILITY_COLOR[utility]} radius={[0, 2, 2, 0]} /></BarChart>
         </ChartCard>
       </div>
       <div className="grid" style={{ marginTop: 16 }}>

@@ -304,7 +304,7 @@ function GridEntry({ disabled }: { disabled: boolean }) {
                 <td className="num"><input className="input mono" style={{ width: 130, textAlign: 'right' }} inputMode="decimal" value={texts[m.id] ?? ''} disabled={disabled || loading}
                   onChange={(e) => setTexts({ ...texts, [m.id]: e.target.value })} aria-label={`Closing reading for ${m.name}`} /></td>
                 <td className="num">{r?.consumption != null ? fmtAuto(r.consumption) : '—'}</td>
-                <td className="small">{r ? (r.errors.length ? <span style={{ color: 'var(--bad)' }}>{r.errors[0].message}</span> : r.warnings.length ? <span style={{ color: 'var(--warn)' }}>{r.warnings[0].message}</span> : <CheckCircle2 size={14} color="#247b50" />) : ''}</td>
+                <td className="small">{r ? (r.errors.length ? <span style={{ color: 'var(--bad)' }}>{r.errors[0].message}</span> : r.warnings.length ? <span style={{ color: 'var(--warn)' }}>{r.warnings[0].message}</span> : <CheckCircle2 size={14} color="#1d7a52" />) : ''}</td>
               </tr>);
           })}
           {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 24 }}>No meters available for this utility.</td></tr>}

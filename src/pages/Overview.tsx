@@ -177,8 +177,8 @@ export default function Overview() {
             <CartesianGrid vertical={false} stroke={GRID} />
             <XAxis dataKey="label" tick={axisStyle} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={20} interval="preserveStartEnd" />
             <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={60} tickFormatter={(v: number) => fmtNumber(v)} />
-            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(29,111,165,.06)' }} formatter={(v: number) => [`${fmtAuto(v)} ${unitOf(sel)}`, UTILITY_INFO[sel].label]} />
-            {avgLine !== null && <ReferenceLine y={avgLine} stroke="#6b6560" strokeDasharray="3 3" ifOverflow="extendDomain" />}
+            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(165,26,45,.06)' }} formatter={(v: number) => [`${fmtAuto(v)} ${unitOf(sel)}`, UTILITY_INFO[sel].label]} />
+            {avgLine !== null && <ReferenceLine y={avgLine} stroke="#75696b" strokeDasharray="3 3" ifOverflow="extendDomain" />}
             <Bar dataKey="value" name={unitOf(sel)} fill={HUE} radius={[2, 2, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ChartCard>

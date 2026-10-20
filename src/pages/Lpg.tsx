@@ -65,7 +65,7 @@ export default function Lpg() {
         {tanks.map((t) => (
           <div className="card" key={t.tank}><div className="card-head"><h3>Tank {t.tank}</h3>{t.status && <StatusPill kind={KIND[t.status]}>{t.status}</StatusPill>}</div>
             <div style={{ height: 18, borderRadius: 9, background: 'var(--surface-2)', border: '1px solid var(--border)', overflow: 'hidden' }} role="progressbar" aria-valuenow={t.level === null ? undefined : Math.round(t.level * 100)} aria-valuemin={0} aria-valuemax={100}>
-              <div style={{ width: `${(t.level ?? 0) * 100}%`, height: '100%', background: t.status === 'CRITICAL' || t.status === 'EMPTY' ? '#c4242a' : t.status === 'LOW' ? '#d18b0f' : '#1d6fa5', transition: 'width .5s' }} /></div>
+              <div style={{ width: `${(t.level ?? 0) * 100}%`, height: '100%', background: t.status === 'CRITICAL' || t.status === 'EMPTY' ? '#b4500f' : t.status === 'LOW' ? '#c97a10' : '#a51a2d', transition: 'width .5s' }} /></div>
           </div>))}
       </div>
       {canEnter ? (
@@ -78,8 +78,8 @@ export default function Lpg() {
       ) : <Note kind="info">You do not have permission to record tank levels.</Note>}
       <div className="grid g2">
         <ChartCard title="Level history (%)" hasData={chart.length > 0}>
-          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#ebe8e3" /><XAxis dataKey="t" tick={axisStyle} minTickGap={30} /><YAxis tick={axisStyle} domain={[0, 100]} width={40} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            {[1, 2, 3].map((t) => <Line key={t} type="stepAfter" dataKey={`Tank ${t}`} stroke={PALETTE[t - 1]} dot={chart.length < 40} connectNulls />)}</LineChart>
+          <LineChart data={chart}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="t" tick={axisStyle} minTickGap={30} /><YAxis tick={axisStyle} domain={[0, 100]} width={40} /><Tooltip contentStyle={tooltipStyle} /><Legend />
+            {[1, 2, 3].map((t) => <Line isAnimationActive={false} key={t} type="stepAfter" dataKey={`Tank ${t}`} stroke={PALETTE[t - 1]} dot={chart.length < 40} connectNulls />)}</LineChart>
         </ChartCard>
         <div className="card"><h3>History</h3>
           <DataTable rows={lpgHistory} rowKey={(r) => r.id ?? r.recorded_at + r.tank} initialSort={{ key: 'at', dir: 'desc' }} defaultPageSize={10} columns={[

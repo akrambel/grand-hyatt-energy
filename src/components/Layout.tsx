@@ -18,18 +18,6 @@ export function Logo({ className }: { className?: string }) {
   return <img className={className} src={logoUrl()} alt={`${ENV.propertyName} logo`} onError={() => setFailed(true)} />;
 }
 
-/** The product's mark: a meter dial drawn in ink with one needle in the data hue. */
-export function Mark({ size = 32 }: { size?: number }) {
-  return (
-    <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill="var(--text)" />
-      <path d="M8.5 20.5a7.5 7.5 0 1 1 15 0" fill="none" stroke="var(--surface)" strokeWidth="2" strokeLinecap="round" />
-      <path d="M16 20.5l4.6-5.6" stroke="#5aa6dc" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="16" cy="20.5" r="1.8" fill="var(--surface)" />
-    </svg>
-  );
-}
-
 const initials = (name: string | undefined): string => (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
 
 function Notifications() {
@@ -145,8 +133,8 @@ export function Layout() {
     <div className={clsx('app', sidebarCollapsed && 'collapsed')}>
       <aside className={clsx('sidebar', mobileNavOpen && 'open')} aria-label="Main navigation">
         <NavLink to="/" className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
-          <Mark />
-          <div className="name"><strong>Energy &amp; Utilities</strong><span>{ENV.propertyName}</span></div>
+          <Logo />
+          <div className="name"><strong>Energy &amp; Utilities</strong><span>Engineering</span></div>
         </NavLink>
         <nav>
           {groups.map(([g, items]) => (

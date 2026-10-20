@@ -9,7 +9,7 @@ import type { WaterSection } from '../lib/waterSections.ts';
 import { UTILITY_INFO } from '../lib/types.ts';
 import { eachDay, monthShortName, parseISO } from '../lib/dates.ts';
 
-const SECTION_COLOR: Record<string, string> = { standard: '#1d6fa5', hot_water: '#0f3f63', irrigation: '#9cc3e0' };
+const SECTION_COLOR: Record<string, string> = { standard: '#a51a2d', hot_water: '#7a1222', irrigation: '#ecb3ba' };
 
 /** Sections of the water total for a period (shared by the Water page, Overview and reports). */
 export function useWaterSections(start: string, end: string): WaterSection[] {
@@ -51,7 +51,7 @@ export function WaterSectionsPanel({ sections, start, end }: { sections: WaterSe
       {!none && (
         <ChartCard title={`Daily water by section (${unit})`} hasData={chart.some((r) => sections.some((s) => r[s.category] !== null))}>
           <BarChart data={chart}><CartesianGrid strokeDasharray="3 3" stroke="#e9dfd6" /><XAxis dataKey="label" tick={axisStyle} minTickGap={24} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            {sections.filter((s) => s.meters > 0).map((s) => <Bar key={s.category} dataKey={s.category} name={s.label} stackId="w" fill={SECTION_COLOR[s.category]} />)}
+            {sections.filter((s) => s.meters > 0).map((s) => <Bar isAnimationActive={false} key={s.category} dataKey={s.category} name={s.label} stackId="w" fill={SECTION_COLOR[s.category]} />)}
           </BarChart>
         </ChartCard>)}
     </>
