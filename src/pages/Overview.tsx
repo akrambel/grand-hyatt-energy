@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
-import { PenSquare } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { ArrowDown, ArrowUp, Bell, Droplets, Flame, Gauge as GaugeIcon, MapPin, PenSquare, Snowflake, Zap } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { useAuth } from '../store/auth.ts';
+import { brandUrl } from '../config/env.ts';
 import { useData } from '../store/data.ts';
 import { useSensors } from '../store/sensors.ts';
 import { useCanEnter } from '../store/auth.ts';
@@ -19,6 +22,39 @@ import { ambientTemp, deviceState } from '../lib/sensor.ts';
 import { addDays, formatDate, monthShortName, parseISO, timeAgo } from '../lib/dates.ts';
 
 const MAX_DAILY_BARS = 93;
+const INK_DAYS = 14;
+const UTILITY_ICON: Record<Utility, LucideIcon> = { energy: Zap, water: Droplets, gas: Flame, chilled: Snowflake };
+const UTILITY_PATH: Record<Utility, string> = { energy: '/energy', water: '/water', gas: '/gas', chilled: '/chilled' };
+
+const greeting = (h: number): string => (h < 12 ? 'Good morning,' : h < 18 ? 'Good afternoon,' : 'Good evening,');
+
+/** Semicircle gauge drawn as tick marks; the ticks up to the value are in the brand red. Read-only: it shows a reading, it controls nothing. */
+function ArcGauge({ value, min, max, unit }: { value: number | null; min: number; max: number; unit: string }) {
+  const n = 41, cx = 130, cy = 128, r = 110;
+  const frac = value === null ? 0 : Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const on = Math.round(frac * (n - 1));
+  const ticks = Array.from({ length: n }, (_, i) => {
+    const a = Math.PI - (i / (n - 1)) * Math.PI;
+    const long = i % 5 === 0;
+    const r1 = r - (long ? 14 : 9), cos = Math.cos(a), sin = Math.sin(a);
+    return <line key={i} className={clsx('tick', value !== null && i <= on && 'on')} x1={cx + r1 * cos} y1={cy - r1 * sin} x2={cx + r * cos} y2={cy - r * sin} />;
+  });
+  const end = Math.PI - frac * Math.PI;
+  const bandR = r - 22;
+  const band = value === null || frac === 0 ? null
+    : `M ${cx - bandR} ${cy} A ${bandR} ${bandR} 0 0 1 ${cx + bandR * Math.cos(end)} ${cy - bandR * Math.sin(end)}`;
+  return (
+    <div className="gauge">
+      <svg viewBox="0 0 260 150" role="img" aria-label={value === null ? 'No reading' : `${fmtNumber(value, 1)} ${unit} on a scale of ${min} to ${max}`}>
+        {band && <path className="band" d={band} />}
+        {ticks}
+        <text className="g-scale" x={cx - r} y={cy + 18} textAnchor="middle">{min}°</text>
+        <text className="g-scale" x={cx + r} y={cy + 18} textAnchor="middle">{max}°</text>
+      </svg>
+      <div className={clsx('g-value', value === null && 'na')}>{value === null ? 'No reading' : <>{fmtNumber(value, 1)}<small>{unit}</small></>}</div>
+    </div>
+  );
+}
 
 /** "20 Oct" */
 const shortDate = (iso: string): string => { const { m, d } = parseISO(iso); return `${d} ${monthShortName(m)}`; };
@@ -89,6 +125,18 @@ export default function Overview() {
   const device = devices[0] ?? null;
   const devState = device ? deviceState(device.last_seen_at, settings.deviceOfflineMinutes) : 'never';
   const openAlerts = alerts.filter((a) => !a.resolved_at && !a.acknowledged_at);
+  const profile = useAuth((s) => s.profile);
+  const firstName = (profile?.display_name || profile?.username || '').split(/\s+/)[0];
+
+  // The ink card: the selected utility over the last two weeks up to the reading day; the two highest days are hatched.
+  const selCell = cells.find((c) => c.u === sel)!;
+  const ink = useMemo(() => {
+    if (!readingDay) return [];
+    const pts = dailySeries(totals[sel], addDays(readingDay, -(INK_DAYS - 1)), readingDay);
+    const top = pts.filter((p) => p.value !== null).sort((a, b) => b.value! - a.value!).slice(0, 2).map((p) => p.date);
+    return pts.map((p) => ({ label: shortDate(p.date), value: p.value, peak: top.includes(p.date) ? p.value : null }));
+  }, [totals, sel, readingDay]);
+  const readCount = cells.filter((c) => c.day?.total != null).length;
 
   const months = useMemo(() => {
     const per = Object.fromEntries(UTILITIES.map((u) => [u, monthlySeries(totals[u], fy, settings.fiscalStartMonth)])) as Record<Utility, ReturnType<typeof monthlySeries>>;
@@ -125,23 +173,104 @@ export default function Overview() {
 
   return (
     <>
-      <div className="page-head">
+      <section className="greet">
         <div>
-          <h1>Overview</h1>
-          <p>{findingText}</p>
+          <p className="hello">{greeting(new Date().getHours())}</p>
+          <h1>{firstName || 'Overview'}</h1>
+          <p className="finding">{findingText}</p>
         </div>
         <div className="actions">
-          {readingDay && <span className="stamp"><span className={clsx('dot', readingDay === today ? 'ok' : readingDay >= addDays(today, -1) ? '' : 'warn')} />Readings up to {formatDate(readingDay)}</span>}
           <ExportButtons build={build} />
           {canEnter && <Link className="btn primary" to="/entry"><PenSquare size={16} />Enter readings</Link>}
+        </div>
+      </section>
+
+      {!anyData && <Note kind="info"><strong>No consumption data in this period.</strong> Enter readings on the Daily Entry page or import the workbook (Administration → Import).</Note>}
+
+      <div className="hero-row">
+        {/* The ink card: the selected utility on the reading day, and its last two weeks as steps */}
+        <div className="ink-card">
+          <div className="ink-head">
+            <span className="ink-icon">{(() => { const I = UTILITY_ICON[sel]; return <I size={18} />; })()}</span>
+            <div>
+              <h3>{UTILITY_INFO[sel].label} {readingDay ? `on ${shortDate(readingDay)}` : ''}</h3>
+              {selCell.change !== null && (
+                <span className={clsx('ink-chip', selCell.change > 0 ? 'up' : 'down')}>
+                  <i>{selCell.change > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}</i>
+                  {fmtNumber(Math.abs(selCell.change * 100), 1)}% vs {selCell.baseDays}-day average
+                </span>
+              )}
+            </div>
+          </div>
+          <div className={clsx('ink-value', selCell.day?.total == null && 'na')}>
+            {selCell.day?.total == null ? 'Not read yet' : <>{fmtAuto(selCell.day.total)}<small>{unitOf(sel)}</small></>}
+          </div>
+          <div className="ink-sub">Last {INK_DAYS} days · hatched: the two highest days</div>
+          <div className="ink-chart">
+            {ink.some((p) => p.value !== null) && (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={ink} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap="8%">
+                  <defs>
+                    <pattern id="ink-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                      <rect width="6" height="6" fill="#2a1418" />
+                      <line x1="0" y1="0" x2="0" y2="6" stroke="#e8798a" strokeWidth="2.4" />
+                    </pattern>
+                  </defs>
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} interval={Math.ceil(INK_DAYS / 4) - 1} tick={{ fontSize: 11 }} />
+                  <YAxis hide domain={[(min: number) => Math.max(0, min - (min * 0.25)), 'dataMax']} />
+                  <Tooltip cursor={false} formatter={(v: number) => [`${fmtAuto(v)} ${unitOf(sel)}`, UTILITY_INFO[sel].label]} />
+                  <Bar dataKey="peak" tooltipType="none" fill="url(#ink-hatch)" stroke="#e8798a" strokeWidth={1} isAnimationActive={false} />
+                  <Line dataKey="value" type="stepAfter" stroke="#f5efee" strokeWidth={1.4} strokeDasharray="3 3" dot={{ r: 2.2, fill: '#f5efee', stroke: 'none' }} activeDot={{ r: 3.5 }} connectNulls={false} isAnimationActive={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* The resort, with each utility's reading as a glass label */}
+        <div className="hero-photo" style={{ backgroundImage: `url(${brandUrl('hero-wide.jpg')})` }}>
+          <span className="glass-chip status">
+            <span className={clsx('dot', !readingDay ? '' : readingDay === today ? 'ok' : readingDay >= addDays(today, -1) ? '' : 'warn')} />
+            <strong>{readingDay ? `Readings up to ${shortDate(readingDay)}` : 'No readings yet'}</strong>
+            {readingDay && <span>· {readCount} of {UTILITIES.length} utilities read</span>}
+          </span>
+          <div className="chip-grid">
+            {cells.map((c) => {
+              const I = UTILITY_ICON[c.u];
+              return (
+                <Link key={c.u} className="glass-chip" to={UTILITY_PATH[c.u]}>
+                  <span className="ic"><I size={15} /></span>
+                  <strong>{UTILITY_INFO[c.u].short}</strong>
+                  <span>{c.day?.total == null ? 'not read' : `${fmtAuto(c.day.total)} ${UTILITY_INFO[c.u].unit}`}</span>
+                </Link>
+              );
+            })}
+            {openAlerts.length > 0 && (
+              <Link className="glass-chip" to="/alerts"><span className="ic"><Bell size={15} /></span><strong>{openAlerts.length} open alert{openAlerts.length === 1 ? '' : 's'}</strong></Link>
+            )}
+          </div>
+        </div>
+
+        {/* The live sensor, as a gauge */}
+        <div className="card sensor-panel">
+          <div className="card-head">
+            <h3>{device?.name ?? 'Live sensor'}</h3>
+            <span className="stamp"><span className={clsx('dot', devState === 'online' ? 'ok' : devState === 'delayed' ? 'warn' : devState === 'offline' ? 'bad' : '')} />
+              {devState === 'never' ? (device ? 'No data yet' : 'No device') : devState === 'online' ? `Live · ${timeAgo(live?.measured_at ?? device?.last_seen_at)}` : `${devState === 'offline' ? 'Offline' : 'Delayed'} · ${timeAgo(device?.last_seen_at)}`}</span>
+          </div>
+          <div className="chips">
+            <span className="soft-chip"><i><Droplets size={12} /></i>{live?.aht20_humidity_pct == null ? '—' : `${fmtNumber(live.aht20_humidity_pct, 0)}% RH`}</span>
+            <span className="soft-chip"><i><GaugeIcon size={12} /></i>{live?.bmp280_pressure_hpa == null ? '—' : `${fmtNumber(live.bmp280_pressure_hpa, 0)} hPa`}</span>
+            {device?.location && <span className="soft-chip"><i><MapPin size={12} /></i>{device.location}</span>}
+          </div>
+          <ArcGauge value={ambientTemp(live)} min={10} max={40} unit="°C" />
+          <div className="g-caption">Temperature (AHT20), scale 10–40 °C</div>
         </div>
       </div>
 
       <div className="filters">{ui}{clearButton}</div>
 
-      {!anyData && <Note kind="info"><strong>No consumption data in this period.</strong> Enter readings on the Daily Entry page or import the workbook (Administration → Import).</Note>}
-
-      {/* The reading round: each utility on the latest reading day, how many meters came in, and the change in words. */}
+      {/* Utility tiles: each utility on the latest reading day; picking one drives the ink card and the chart */}
       <div className="round" role="tablist" aria-label={readingDay ? `Readings on ${formatDate(readingDay)}` : 'Readings'}>
         {cells.map((c) => {
           const info = UTILITY_INFO[c.u];
@@ -197,7 +326,7 @@ export default function Overview() {
         </div>
       </div>
 
-      <div className="grid g3 stretch">
+      <div className="grid g2 stretch">
         <div className="card">
           <div className="card-head"><h3>Water by section</h3><Link className="link-btn" to="/water">Water</Link></div>
           <ul className="list-rows">
@@ -220,19 +349,6 @@ export default function Overview() {
           </dl>
         </div>
 
-        <div className="card">
-          <div className="card-head">
-            <h3>{device?.name ?? 'Live sensor'}</h3>
-            <span className="stamp"><span className={clsx('dot', devState === 'online' ? 'ok' : devState === 'delayed' ? 'warn' : devState === 'offline' ? 'bad' : '')} />
-              {devState === 'never' ? (device ? 'No data yet' : 'No device') : devState === 'online' ? `Live · ${timeAgo(live?.measured_at ?? device?.last_seen_at)}` : `${devState === 'offline' ? 'Offline' : 'Delayed'} · ${timeAgo(device?.last_seen_at)}`}</span>
-          </div>
-          <dl className="kv">
-            <div><dt>Temperature (AHT20)</dt><dd className={clsx(ambientTemp(live) === null && 'na')}>{ambientTemp(live) === null ? '—' : <>{fmtNumber(ambientTemp(live), 1)}<small>°C</small></>}</dd></div>
-            <div><dt>Humidity</dt><dd className={clsx(live?.aht20_humidity_pct == null && 'na')}>{live?.aht20_humidity_pct == null ? '—' : <>{fmtNumber(live.aht20_humidity_pct, 1)}<small>%</small></>}</dd></div>
-            <div><dt>Pressure</dt><dd className={clsx(live?.bmp280_pressure_hpa == null && 'na')}>{live?.bmp280_pressure_hpa == null ? '—' : <>{fmtNumber(live.bmp280_pressure_hpa, 1)}<small>hPa</small></>}</dd></div>
-            <div><dt>Location</dt><dd>{device?.location ?? '—'}</dd></div>
-          </dl>
-        </div>
       </div>
 
       <div className="grid g-main stretch">
