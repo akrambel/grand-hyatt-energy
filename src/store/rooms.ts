@@ -1,5 +1,5 @@
 // Guest-room data access. Rooms and their daily readings are kept apart from the main store because
-// 368 rooms × 365 days would make every other page slow; they are loaded only for the period shown.
+// 430 rooms × 365 days would make every other page slow; they are loaded only for the period shown.
 import { supabase, fetchAll, friendlyError } from '../lib/supabase.ts';
 import { addDays } from '../lib/dates.ts';
 import { ROOM_STATUSES } from '../lib/rooms.ts';

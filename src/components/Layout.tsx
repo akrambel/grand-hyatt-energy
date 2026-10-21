@@ -9,6 +9,8 @@ import { useAvatar, AVATAR_TYPES } from '../store/avatar.ts';
 import { supabase } from '../lib/supabase.ts';
 import { ENV, logoUrl } from '../config/env.ts';
 import { NAV } from './nav.ts';
+import { floorOf, isHotelRoom } from '../lib/rooms.ts';
+import { roomDetail } from '../lib/roomDetails.ts';
 import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
 import { clsx } from '../lib/format.ts';
 import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
@@ -133,12 +135,15 @@ function GlobalSearch() {
       .filter(({ qp, pg }) => { const hay = `${qp.terms} ${pg.label} ${pg.keywords ?? ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
       .slice(0, 6)
       .map(({ qp, pg }) => ({ key: `${qp.mode}:${pg.path}`, label: `${qp.short} – ${pg.label}`, sub: qp.name, to: `${pg.path}?period=${qp.mode}` }));
-    return [...quick, ...pages, ...ms];
+    // Guest rooms by number: "905", "12" → room 012
+    const roomNo = /^\d{1,3}$/.test(n) ? n.padStart(3, '0') : '';
+    const room = roomNo && isHotelRoom(roomNo) ? [{ key: `room:${roomNo}`, label: `Room ${roomNo}`, sub: `${roomDetail(roomNo)?.type ?? 'Guest room'} · ${floorOf(roomNo)}`, to: `/rooms?room=${roomNo}` }] : [];
+    return [...room, ...quick, ...pages, ...ms];
   }, [q, meters, admin]);
   return (
     <div className="search" ref={ref}>
       <Search size={16} />
-      <input ref={inputRef} aria-label="Global search" placeholder="Search pages, meters, MTD, WTD" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input ref={inputRef} aria-label="Global search" placeholder="Search pages, meters, rooms, MTD" value={q} onChange={(e) => setQ(e.target.value)} />
       <kbd aria-hidden="true">Ctrl K</kbd>
       {hits.length > 0 && (
         <div className="search-results">

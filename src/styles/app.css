@@ -261,8 +261,8 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
 .toast { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; box-shadow: 0 12px 28px rgba(25, 22, 21, .14); display: flex; gap: 10px; }
 .toast > svg { flex: none; margin-top: 1px; color: var(--muted); }
 .toast.success > svg { color: var(--positive); } .toast.error > svg { color: var(--negative); } .toast.warning > svg { color: #d18b0f; }
-.modal-back { position: fixed; inset: 0; background: rgba(12, 10, 9, .45); display: grid; place-items: center; z-index: 90; padding: 16px; }
-.modal { background: var(--surface); border-radius: var(--radius-card); padding: 24px; max-width: 520px; width: 100%; box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+.modal-back { position: fixed; inset: 0; background: rgba(12, 10, 9, .45); display: grid; place-items: center; grid-template-columns: minmax(0, 1fr); z-index: 90; padding: 16px; }
+.modal { background: var(--surface); border-radius: var(--radius-card); padding: 24px; max-width: 520px; width: 100%; min-width: 0; max-height: calc(100dvh - 32px); overflow: auto; box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
 .modal h3 { margin-bottom: 8px; font-size: 18px; } .modal .actions { justify-content: flex-end; margin-top: 20px; }
 .drawer { position: absolute; right: 0; top: 44px; width: min(380px, 92vw); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 16px 40px rgba(25, 22, 21, .14); max-height: 70vh; overflow: auto; z-index: 60; }
 .drawer .item { padding: 12px 16px; border-bottom: 1px solid var(--rule); }
@@ -432,3 +432,7 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
 }
 @media print { .sidebar, .header, .actions, .filters { display: none !important; } .main { padding: 0; } .sheet { border: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { } }
+.room-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px 16px; margin: 8px 0 0; }
+.room-facts div { min-width: 0; }
+.room-facts dt { font-size: 12px; color: var(--muted); }
+.room-facts dd { margin: 2px 0 0; font-weight: 500; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }

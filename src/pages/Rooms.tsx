@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts';
-import { BedDouble } from 'lucide-react';
+import { BedDouble, Search } from 'lucide-react';
 import { useData } from '../store/data.ts';
 import { useCanEnter, useIsAdmin } from '../store/auth.ts';
 import { fetchRooms, fetchRoomReadings, addRooms, deleteRoom, roomUnitInfo } from '../store/rooms.ts';
@@ -10,6 +11,8 @@ import { DataTable } from '../components/DataTable.tsx';
 import type { Column } from '../components/DataTable.tsx';
 import { ExportButtons } from '../components/ExportButtons.tsx';
 import { RoomEntry } from '../components/RoomEntry.tsx';
+import { RoomDetails } from '../components/RoomDetails.tsx';
+import { roomDetail } from '../lib/roomDetails.ts';
 import { ConfirmDialog, Field, KpiCard, Modal, Note, PageHead, StatusPill } from '../components/ui.tsx';
 import { FLOORS, FLOOR_COUNTS, HOTEL_ROOMS, OTHER_FLOOR, ROOM_STATUSES, ROOM_STATUS_LABEL, analyzeRoomPeriod, compareRooms, computeRoomDays, floorOf, groupAverage, isHotelRoom, parseRoomList, roomDayRows, vacantHigh } from '../lib/rooms.ts';
 import type { RoomDayRow, RoomReading, RoomStatus } from '../lib/rooms.ts';
@@ -36,7 +39,20 @@ export default function Rooms() {
   const [floorFilter, setFloorFilter] = useState('all');
   const [entry, setEntry] = useState(false);
   const [manage, setManage] = useState(false);
-  // 368 rooms × many days is a lot of rows: the page works on up to 93 days at a time.
+  const [params, setParams] = useSearchParams();
+  const [openRoom, setOpenRoomState] = useState<string | null>(params.get('room'));
+  // ?room=905 (from the global search) opens that room
+  useEffect(() => { const r = params.get('room'); if (r) setOpenRoomState(r); }, [params]);
+  const setOpenRoom = (r: string | null) => { setOpenRoomState(r); if (!r && params.has('room')) { params.delete('room'); setParams(params, { replace: true }); } };
+  const [find, setFind] = useState('');
+  const findRoom = () => {
+    const t = find.trim();
+    if (!t) return;
+    const room = /^\d{1,3}$/.test(t) ? t.padStart(3, '0') : t;
+    if (isHotelRoom(room) || rooms.includes(room)) { setOpenRoom(room); setFind(''); }
+    else notify.error('Room not found', `${t} is not in the hotel's room list.`);
+  };
+  // 430 rooms × many days is a lot of rows: the page works on up to 93 days at a time.
   const spanDays = Math.round((Date.parse(period.end) - Date.parse(period.start)) / 86400000) + 1;
   const tooLong = spanDays > 93;
 
@@ -95,7 +111,8 @@ export default function Rooms() {
   const top = [...stats.perRoom.entries()].map(([room, v]) => ({ room, total: Math.round(v.total * 1000) / 1000, days: v.days })).sort((a, b) => b.total - a.total).slice(0, 10);
 
   const cols: Column<RoomDayRow>[] = [
-    { key: 'r', header: 'Room', value: (r) => r.room, render: (r) => <strong>{r.room}</strong> },
+    { key: 'r', header: 'Room', value: (r) => r.room, render: (r) => <button className="link-btn" title="Show room details" onClick={() => setOpenRoom(r.room)}><strong>{r.room}</strong></button> },
+    { key: 't', header: 'Type', value: (r) => roomDetail(r.room)?.type ?? '', render: (r) => <span className="small">{roomDetail(r.room)?.type ?? '–'}</span> },
     { key: 's', header: 'Status', value: (r) => (r.status ? ROOM_STATUS_LABEL[r.status] : ''), render: (r) => (r.status ? <StatusPill kind={r.status === 'occupied' ? 'ok' : r.status === 'vacant' ? 'info' : 'warn'}>{ROOM_STATUS_LABEL[r.status]}</StatusPill> : <span className="muted">Not set</span>) },
     { key: 'o', header: `Previous reading (${unit})`, num: true, value: (r) => r.opening, render: (r) => fmtNumber(r.opening, 3) },
     { key: 'c', header: `Reading (${unit})`, num: true, value: (r) => r.closing, render: (r) => fmtNumber(r.closing, 3) },
@@ -125,11 +142,18 @@ export default function Rooms() {
 
   return (
     <>
-      <PageHead title="Guest Rooms" subtitle={`${period.label} · ${HOTEL_ROOMS.length} rooms on 5 floors and 10 beach villas · chilled water, one BTU meter per room · unit: ${unit}`}>
+      <PageHead title="Guest Rooms" subtitle={`${period.label} · ${HOTEL_ROOMS.length} rooms: 5 floors, the Tail and 10 beach villas · chilled water, one BTU meter per room · unit: ${unit}`}>
         {canEnter && <button className="btn primary" onClick={() => setEntry(true)} disabled={rooms.length === 0}><BedDouble size={16} />Enter readings</button>}
         {admin && <button className="btn" onClick={() => setManage(true)}>Manage rooms</button>}
         <ExportButtons build={build} disabled={rooms.length === 0} />
       </PageHead>
+      <div className="filters">
+        <Field label="Find a room"><span className="actions" style={{ flexWrap: 'nowrap' }}>
+          <input className="input" style={{ width: 120 }} list="hotel-rooms" inputMode="numeric" placeholder="e.g. 905" value={find}
+            onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') findRoom(); }} aria-label="Room number" />
+          <button className="btn" onClick={findRoom} disabled={!find.trim()}><Search size={15} />Open</button></span>
+          <datalist id="hotel-rooms">{HOTEL_ROOMS.map((r) => <option key={r} value={r}>{roomDetail(r)?.type}</option>)}</datalist></Field>
+      </div>
       <div className="filters">{ui}
         <Field label="Day shown in the table"><input className="input" type="date" min={period.start} max={period.end} value={day} onChange={(e) => setDayPick(e.target.value)} /></Field>
         <Field label="Floor"><select className="input" value={floorFilter} onChange={(e) => setFloorFilter(e.target.value)}>
@@ -189,7 +213,7 @@ export default function Rooms() {
           </div>
         </div>
         <ChartCard title={`Top 10 rooms – total in period (${unit})`} chartId="rooms-top" hasData={top.length > 0}>
-          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid horizontal={false} stroke="#efe7df" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="total" name={unit} fill="#a51a2d" /></BarChart>
+          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid horizontal={false} stroke="#efe7df" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="total" name={unit} fill="#a51a2d" cursor="pointer" onClick={(b: { room?: string }) => { if (b.room) setOpenRoom(b.room); }} /></BarChart>
         </ChartCard>
       </div>
 
@@ -199,6 +223,8 @@ export default function Rooms() {
       </div>
 
       {entry && <RoomEntry rooms={rooms} unit={unit} factor={factor} onClose={() => setEntry(false)} onSaved={(d) => { setDayPick(d >= period.start && d <= period.end ? d : ''); void load(); }} />}
+      {openRoom && <RoomDetails room={openRoom} inSystem={rooms.includes(openRoom)} readings={readings} days={days} start={period.start} end={period.end}
+        periodLabel={period.label} unit={unit} onOpen={setOpenRoom} onClose={() => setOpenRoom(null)} />}
       {manage && <ManageRooms rooms={rooms} onClose={() => setManage(false)} onChanged={() => void load()} />}
     </>
   );
@@ -221,7 +247,7 @@ function ManageRooms({ rooms, onClose, onChanged }: { rooms: string[]; onClose: 
   return (
     <Modal title="Manage rooms" onClose={onClose} actions={<button className="btn" onClick={onClose}>Close</button>}>
       <h3>Hotel room list</h3>
-      <p className="small muted" style={{ margin: '4px 0 10px' }}>{FLOORS.map((f) => `${f.label} ${FLOOR_COUNTS[f.label]}`).join(' · ')} · {HOTEL_ROOMS.length} rooms in total. L00 has no rooms 053 to 057.</p>
+      <p className="small muted" style={{ margin: '4px 0 10px' }}>{FLOORS.map((f) => `${f.label} ${FLOOR_COUNTS[f.label]}`).join(' · ')} · {HOTEL_ROOMS.length} rooms in total. L00 has no rooms 053 to 057 and L01 has no room 155.</p>
       {missing.length === 0
         ? <Note kind="ok">All {HOTEL_ROOMS.length} hotel rooms are in the system.</Note>
         : <button className="btn primary" disabled={busy} onClick={() => void add(missing)}>Add the hotel's {HOTEL_ROOMS.length} rooms{missing.length !== HOTEL_ROOMS.length ? ` (${missing.length} missing)` : ''}</button>}

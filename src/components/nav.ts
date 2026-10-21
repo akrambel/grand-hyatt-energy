@@ -11,7 +11,7 @@ export const NAV: NavItem[] = [
   { path: '/water', label: 'Water', icon: Droplets, group: 'Utilities', keywords: 'm3 domestic' },
   { path: '/gas', label: 'Gas / LPG', icon: Flame, group: 'Utilities', keywords: 'lpg litres' },
   { path: '/chilled', label: 'Chilled Water', icon: Snowflake, group: 'Utilities', keywords: 'cooling ton' },
-  { path: '/rooms', label: 'Guest Rooms', icon: BedDouble, group: 'Utilities', keywords: 'rooms 368 keys floors villas L00 L01 L02 L03 L04 btu chilled water occupancy status vacant occupied' },
+  { path: '/rooms', label: 'Guest Rooms', icon: BedDouble, group: 'Utilities', keywords: 'rooms 430 keys floors tail villas L00 L01 L02 L03 L04 room details type view connecting btu chilled water occupancy status vacant occupied' },
   { path: '/lpg', label: 'LPG Tanks', icon: Fuel, group: 'Utilities', keywords: 'tank level' },
   { path: '/costs', label: 'Costs', icon: Wallet, group: 'Analysis', keywords: 'tariff price sar' },
   { path: '/budget', label: 'Budget vs Actual', icon: Scale, group: 'Analysis', keywords: 'variance previous year' },

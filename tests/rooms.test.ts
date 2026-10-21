@@ -143,15 +143,21 @@ test('room sheet without header uses columns 1-3; CSV with semicolons and quotes
   assert.deepEqual(r.entries, [{ room: '101', closing: 500, status: 'occupied' }, { room: '102', closing: 40, status: 'out_of_order' }]);
 });
 
-test('hotel room list: 368 rooms on five floors and ten beach villas', async () => {
+test('hotel room list: 430 rooms, matching the room register', async () => {
   const { HOTEL_ROOMS, FLOOR_COUNTS, floorOf, isHotelRoom } = await import('../src/lib/rooms.ts');
-  assert.equal(HOTEL_ROOMS.length, 368);
-  assert.deepEqual(FLOOR_COUNTS, { L00: 90, L01: 95, L02: 75, L03: 62, L04: 36, 'Beach villas': 10 });
+  const { ROOM_DETAILS, roomDetail } = await import('../src/lib/roomDetails.ts');
+  assert.equal(HOTEL_ROOMS.length, 430);
+  assert.deepEqual(FLOOR_COUNTS, { L00: 90, L01: 94, L02: 75, L03: 63, L04: 36, 'Tail L01': 37, 'Tail L02': 25, 'Beach villas': 10 });
+  assert.deepEqual([...HOTEL_ROOMS].sort(), ROOM_DETAILS.map((d) => d.room).sort());
+  for (const d of ROOM_DETAILS) assert.equal(floorOf(d.room), d.floor, d.room);
   assert.equal(HOTEL_ROOMS[0], '001');
-  assert.ok(!HOTEL_ROOMS.includes('053') && !HOTEL_ROOMS.includes('057') && HOTEL_ROOMS.includes('052') && HOTEL_ROOMS.includes('058'));
-  assert.equal(floorOf('095'), 'L00'); assert.equal(floorOf('101'), 'L01'); assert.equal(floorOf('436'), 'L04');
-  assert.equal(floorOf('905'), 'Beach villas'); assert.equal(floorOf('055'), 'Other'); assert.equal(floorOf('196'), 'Other');
+  assert.ok(!HOTEL_ROOMS.includes('053') && !HOTEL_ROOMS.includes('155') && HOTEL_ROOMS.includes('363'));
+  assert.equal(floorOf('701'), 'Tail L01'); assert.equal(floorOf('825'), 'Tail L02'); assert.equal(floorOf('905'), 'Beach villas');
+  assert.equal(floorOf('055'), 'Other'); assert.equal(floorOf('738'), 'Other');
   assert.ok(isHotelRoom('910') && !isHotelRoom('911') && !isHotelRoom('1'));
+  // connecting rooms point at each other
+  for (const d of ROOM_DETAILS) if (d.connecting) assert.equal(roomDetail(d.connecting)?.connecting, d.room, d.room);
+  assert.equal(ROOM_DETAILS.filter((d) => d.accessible).length, 13);
 });
 
 test('parseRoomList keeps leading zeros in ranges', () => {

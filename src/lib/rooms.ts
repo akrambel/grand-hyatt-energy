@@ -38,16 +38,18 @@ export function parseStatus(text: unknown): RoomStatus | null {
 }
 
 // ---------------------------------------------------------------- hotel rooms ----
-// Grand Hyatt The Red Sea room numbering, as given by engineering (2026-10-20):
-//   L00 001-095 except 053-057 (do not exist) = 90 · L01 101-195 = 95 · L02 201-275 = 75
-//   L03 301-362 = 62 · L04 401-436 = 36 · beach villas 901-910 = 10  →  368 rooms.
+// Grand Hyatt The Red Sea room numbering, from the room register (roomDetails.ts, 2026-10-21):
+//   L00 001-095 except 053-057 = 90 · L01 101-195 except 155 = 94 · L02 201-275 = 75 · L03 301-363 = 63
+//   L04 401-436 = 36 · Tail L01 701-737 = 37 · Tail L02 801-825 = 25 · beach villas 901-910 = 10  →  430 rooms.
 export interface FloorDef { key: string; label: string; from: number; to: number; skip?: number[] }
 export const FLOORS: FloorDef[] = [
   { key: 'L00', label: 'L00', from: 1, to: 95, skip: [53, 54, 55, 56, 57] },
-  { key: 'L01', label: 'L01', from: 101, to: 195 },
+  { key: 'L01', label: 'L01', from: 101, to: 195, skip: [155] },
   { key: 'L02', label: 'L02', from: 201, to: 275 },
-  { key: 'L03', label: 'L03', from: 301, to: 362 },
+  { key: 'L03', label: 'L03', from: 301, to: 363 },
   { key: 'L04', label: 'L04', from: 401, to: 436 },
+  { key: 'T01', label: 'Tail L01', from: 701, to: 737 },
+  { key: 'T02', label: 'Tail L02', from: 801, to: 825 },
   { key: 'VIL', label: 'Beach villas', from: 901, to: 910 },
 ];
 export const OTHER_FLOOR = 'Other';

@@ -2,7 +2,7 @@
 create or replace function pg_temp.as_user(p_uid text) returns void language plpgsql as $$
 begin perform set_config('request.jwt.claim.sub', p_uid, false); execute 'set role authenticated'; end $$;
 reset role;
-select case when count(*) = 368 then 'PASS rooms: 368 hotel rooms' else 'FAIL rooms: ' || count(*) end from public.rooms where room_number ~ '^\d{3}$';
+select case when count(*) = 431 then 'PASS rooms: 430 register rooms + 155 from 0006' else 'FAIL rooms: ' || count(*) end from public.rooms where room_number ~ '^\d{3}$';
 select case when not exists (select 1 from public.rooms where room_number between '053' and '057') then 'PASS rooms: 053-057 absent' else 'FAIL rooms 053-057 present' end;
 insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000e1'), ('00000000-0000-0000-0000-0000000000e2') on conflict do nothing;
 insert into public.profiles(id, username, display_name, role, active) values
@@ -88,3 +88,9 @@ select case when r.closing = 13 and r.entered_by is null then 'PASS delete user:
   from public.readings r join public.meters m on m.id = r.meter_id where m.code = 'TST-ROLL' and r.reading_date = public.local_today() - 45;
 select case when exists (select 1 from public.audit_log where action = 'DELETE_USER' and old_data->>'username' = 'temp_rec')
   then 'PASS delete user: recorded in audit log' else 'FAIL no audit entry' end;
+
+-- 0009: Tail rooms
+select case when (select count(*) from public.rooms where room_number between '701' and '737') = 37
+             and (select count(*) from public.rooms where room_number between '801' and '825') = 25
+             and exists (select 1 from public.rooms where room_number = '363')
+  then 'PASS tail rooms added' else 'FAIL tail rooms' end;
