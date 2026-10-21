@@ -170,3 +170,9 @@ export function scrollToTop(): void {
   if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
   else window.scrollTo(0, 0);
 }
+
+/** Stops page scrolling while a full-screen layer (the phone menu) is open. */
+export function holdScroll(on: boolean): void {
+  document.documentElement.classList.toggle('scroll-held', on);
+  if (lenis) { if (on) lenis.stop(); else lenis.start(); }
+}

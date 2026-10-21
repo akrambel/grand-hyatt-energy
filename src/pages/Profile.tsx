@@ -62,12 +62,12 @@ export default function Profile() {
           </div>
           {photoError && <Note kind="bad">{photoError} If this keeps happening, the database update for photos (migration 0006) may not be applied yet.</Note>}
           <h3>Profile</h3>
-          <table className="data"><tbody>
+          <div className="x-scroll"><table className="data"><tbody>
             <tr><th>Name</th><td>{profile?.display_name}</td></tr>
             <tr><th>Username</th><td>{profile?.username}</td></tr>
             <tr><th>Role</th><td>{profile?.role === 'admin' ? 'Administrator' : 'User'}</td></tr>
             <tr><th>Daily data entry</th><td>{profile?.role === 'admin' || profile?.can_enter_data ? 'Allowed' : 'Not authorised (ask an administrator)'}</td></tr>
-          </tbody></table>
+          </tbody></table></div>
         </div>
         <form className="card" onSubmit={(e) => void submit(e)}>
           <h3>Change password</h3>

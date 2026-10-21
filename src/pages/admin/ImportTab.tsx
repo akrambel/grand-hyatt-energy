@@ -80,7 +80,7 @@ export default function ImportTab() {
       {plan && (
         <div className="card">
           <h3>Preview – {file?.name}</h3>
-          <table className="data"><tbody>
+          <div className="x-scroll"><table className="data"><tbody>
             <tr><th>Sheets found</th><td>{plan.sheetsFound.join(', ') || 'none'}</td></tr>
             <tr><th>Reporting year</th><td>{plan.fiscalYear ?? 'not detected'}{plan.dateRange ? ` · ${formatDate(plan.dateRange.start)} – ${formatDate(plan.dateRange.end)}` : ''}</td></tr>
             <tr><th>Meter readings</th><td>{fmtNumber(plan.readings.length)}</td></tr>
@@ -88,7 +88,7 @@ export default function ImportTab() {
             <tr><th>Budget / previous-period rows</th><td>{fmtNumber(plan.budgets.length)}</td></tr>
             <tr><th>LPG tank levels</th><td>{fmtNumber(plan.lpg.length)}</td></tr>
             <tr><th>New meters</th><td>{fmtNumber(plan.newMeters.length)}{plan.newMeters.length ? ` (${plan.newMeters.slice(0, 5).map((m) => m.name).join(', ')}${plan.newMeters.length > 5 ? ', …' : ''})` : ''}</td></tr>
-          </tbody></table>
+          </tbody></table></div>
           {errors.length > 0 && <Note kind="bad"><strong>{errors.length} error(s) – fix the workbook first:</strong><ul>{errors.slice(0, 15).map((i, k) => <li key={k}>{i.sheet}{i.cell ? ` ${i.cell}` : ''}: {i.message}</li>)}</ul></Note>}
           {warnings.length > 0 && <Note kind="warn"><strong>{warnings.length} warning(s)</strong> (these cells are skipped):<ul>{warnings.slice(0, 15).map((i, k) => <li key={k}>{i.sheet}{i.cell ? ` ${i.cell}` : ''}: {i.message}</li>)}{warnings.length > 15 && <li>… and {warnings.length - 15} more</li>}</ul></Note>}
           {plan.issues.filter((i) => i.level === 'info').map((i, k) => <p className="small muted" key={k}>{i.message}</p>)}

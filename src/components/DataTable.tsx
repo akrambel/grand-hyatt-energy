@@ -79,7 +79,7 @@ export function DataTable<T>({ rows, columns, rowKey, pageSizes = [10, 25, 50, 1
         <span className="small muted">{view.length} row{view.length === 1 ? '' : 's'}{view.length !== rows.length && ` (of ${rows.length})`}</span>
       </div>
       <div className="table-wrap">
-        <table className="data">
+        <table className="data stack">
           <thead><tr>
             {columns.map((c) => (
               <th key={c.key} className={clsx(c.num && 'num')} onClick={() => setSort((s) => (s?.key === c.key ? { key: c.key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: c.key, dir: 'asc' }))}
@@ -92,10 +92,10 @@ export function DataTable<T>({ rows, columns, rowKey, pageSizes = [10, 25, 50, 1
               <tr key={rowKey(row, i)} className={rowClass?.(row) ? 'flag' : undefined}>
                 {columns.map((c) => {
                   const v = c.value(row);
-                  return <td key={c.key} className={clsx(c.num && 'num')}>{c.render ? c.render(row) : (v === null || v === undefined || v === '' ? <span className="muted">{NA}</span> : String(v))}</td>;
+                  return <td key={c.key} className={clsx(c.num && 'num')} data-label={c.header}>{c.render ? c.render(row) : (v === null || v === undefined || v === '' ? <span className="muted">{NA}</span> : String(v))}</td>;
                 })}
               </tr>))}
-            {slice.length === 0 && <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: 24 }} className="muted">{empty ?? 'No data available'}</td></tr>}
+            {slice.length === 0 && <tr className="empty"><td colSpan={columns.length} style={{ textAlign: 'center', padding: 24 }} className="muted">{empty ?? 'No data available'}</td></tr>}
           </tbody>
         </table>
       </div>

@@ -388,7 +388,9 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
   .main { padding: 0; }
   .sheet { border-radius: 0; border-width: 1px 0 0; }
   .sidebar { position: fixed; left: 0; top: 0; width: 280px; transform: translateX(-100%); box-shadow: none; }
-  .sidebar.open { transform: none; box-shadow: 0 0 0 100vmax rgba(12, 10, 9, .4); }
+  .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(12, 10, 9, .25); }
+  .nav-scrim { position: fixed; inset: 0; z-index: 39; background: rgba(12, 10, 9, .4); }
+  .drawer { position: fixed; top: calc(var(--topbar) - 4px); left: 8px; right: 8px; width: auto; max-height: calc(100dvh - var(--topbar) - 16px); }
   .collapsed .nav-link span, .collapsed .side-brand .name, .collapsed .side-foot .who { display: block; }
   .collapsed .nav-group { display: block; height: auto; padding: 20px 10px 6px; color: var(--muted); }
   .collapsed .nav-link { justify-content: flex-start; padding: 0 10px; }
@@ -476,4 +478,25 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
 @media (prefers-reduced-motion: reduce) {
   .ink-last .ink-pulse { animation: none; }
   .round-cell:hover, .glass-chip:hover, .nav-link:hover svg { translate: none; }
+}
+.x-scroll { overflow-x: auto; max-width: 100%; }
+.nav-scrim { display: none; }
+@media (max-width: 1100px) { .nav-scrim { display: block; } }
+html.scroll-held, html.scroll-held body { overflow: hidden; }
+
+/* Phones: DataTable rows become stacked label / value cards, so nothing runs past the right edge;
+   tab bars wrap onto a second line instead of hiding tabs off screen. */
+@media (max-width: 600px) {
+  .tabs { flex-wrap: wrap; gap: 4px 16px; }
+  table.data.stack { min-width: 0; width: 100%; }
+  table.data.stack thead { display: none; }
+  table.data.stack, table.data.stack tbody, table.data.stack tr, table.data.stack td { display: block; }
+  table.data.stack tr { padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+  table.data.stack tr:last-child { border-bottom: 0; }
+  table.data.stack td { height: auto; display: grid; grid-template-columns: minmax(96px, 40%) minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 4px 0; border: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  table.data.stack td.num { text-align: left; }
+  table.data.stack td > * { justify-self: start; }
+  table.data.stack td::before { content: attr(data-label); color: var(--muted); font-size: 12px; font-weight: 500; }
+  table.data.stack tr.empty td { display: block; }
+  table.data.stack tr.empty td::before { content: none; }
 }

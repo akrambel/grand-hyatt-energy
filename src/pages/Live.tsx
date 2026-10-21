@@ -150,10 +150,10 @@ export default function Live() {
         </ChartCard>
         <div className="card"><h3>Range statistics (raw readings)</h3>
           {raw.length === 0 ? <p className="muted">Raw statistics are shown for ranges up to 7 days with data. Use the summary table below for longer ranges.</p> :
-            <table className="data"><thead><tr><th>Measure</th><th className="num">Min</th><th className="num">Average</th><th className="num">Max</th><th className="num">Samples</th></tr></thead><tbody>
+            <div className="x-scroll"><table className="data"><thead><tr><th>Measure</th><th className="num">Min</th><th className="num">Average</th><th className="num">Max</th><th className="num">Samples</th></tr></thead><tbody>
               <tr><td>Temperature °C (AHT20)</td><td className="num">{fmtNumber(rangeStats.t.min, 1)}</td><td className="num">{fmtNumber(rangeStats.t.avg, 1)}</td><td className="num">{fmtNumber(rangeStats.t.max, 1)}</td><td className="num">{rangeStats.t.n}</td></tr>
               <tr><td>Humidity %</td><td className="num">{fmtNumber(rangeStats.h.min, 1)}</td><td className="num">{fmtNumber(rangeStats.h.avg, 1)}</td><td className="num">{fmtNumber(rangeStats.h.max, 1)}</td><td className="num">{rangeStats.h.n}</td></tr>
-              <tr><td>Pressure hPa</td><td className="num">{fmtNumber(rangeStats.p.min, 1)}</td><td className="num">{fmtNumber(rangeStats.p.avg, 1)}</td><td className="num">{fmtNumber(rangeStats.p.max, 1)}</td><td className="num">{rangeStats.p.n}</td></tr></tbody></table>}
+              <tr><td>Pressure hPa</td><td className="num">{fmtNumber(rangeStats.p.min, 1)}</td><td className="num">{fmtNumber(rangeStats.p.avg, 1)}</td><td className="num">{fmtNumber(rangeStats.p.max, 1)}</td><td className="num">{rangeStats.p.n}</td></tr></tbody></table></div>}
           {gaps.length > 0 && <Note kind="warn"><strong>{gaps.length} communication gap(s)</strong> longer than {Math.max(5, settings.deviceOfflineMinutes / 2)} min in this range (e.g. {formatDateTimeLocal(gaps[0].from, tz)} → {formatDateTimeLocal(gaps[0].to, tz)}, {gaps[0].minutes} min). Missing readings are not interpolated.</Note>}
         </div>
       </div>

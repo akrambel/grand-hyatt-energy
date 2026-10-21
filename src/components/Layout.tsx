@@ -14,7 +14,7 @@ import { roomDetail } from '../lib/roomDetails.ts';
 import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
 import { clsx } from '../lib/format.ts';
 import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
-import { animatePage, driftShapes, moveGlider, pressFeedback, scrollToTop, smoothScroll } from '../lib/motion.ts';
+import { animatePage, driftShapes, moveGlider, holdScroll, pressFeedback, scrollToTop, smoothScroll } from '../lib/motion.ts';
 
 export function Logo({ className }: { className?: string }) {
   const [failed, setFailed] = useState(false);
@@ -170,6 +170,14 @@ export function Layout() {
   useEffect(() => subscribe(), [subscribe]);
   useEffect(() => subscribeSensors(), [subscribeSensors]);
   useEffect(() => { setMobileNav(false); }, [loc.pathname, setMobileNav]);
+  // Phone menu: Escape closes it, and the page behind does not scroll while it is open.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileNav(false); };
+    document.addEventListener('keydown', key);
+    holdScroll(true);
+    return () => { document.removeEventListener('keydown', key); holdScroll(false); };
+  }, [mobileNavOpen, setMobileNav]);
 
   // Motion: page entrance on every page change, drifting background shapes, sliding menu highlight.
   const appRef = useRef<HTMLDivElement>(null);
@@ -227,6 +235,7 @@ export function Layout() {
         <svg className="shape s2" viewBox="0 0 200 200"><path d="M38.9,-47.5C50.4,-37.1,59.4,-24.6,63.2,-9.9C67,4.8,65.6,21.7,57.3,34.3C49,46.9,33.8,55.2,17.4,61.1C1,67,-16.6,70.5,-31.8,65C-47,59.5,-59.8,45,-66.2,28.4C-72.6,11.8,-72.6,-6.9,-65.9,-22.4C-59.2,-37.9,-45.8,-50.2,-31.6,-59.9C-17.4,-69.6,-2.4,-76.7,10.6,-74.2C23.6,-71.7,27.4,-57.9,38.9,-47.5Z" transform="translate(100 100)" /></svg>
         <svg className="shape s3" viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" fill="none" strokeWidth="1.2" /><circle cx="100" cy="100" r="62" fill="none" strokeWidth="1" /><circle cx="100" cy="100" r="38" fill="none" strokeWidth="0.8" /></svg>
       </div>
+      {mobileNavOpen && <div className="nav-scrim" onClick={() => setMobileNav(false)} aria-hidden="true" />}
       <aside className={clsx('sidebar', mobileNavOpen && 'open')} aria-label="Main navigation">
         <NavLink to={recorder ? '/entry' : '/'} className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
           <Logo />

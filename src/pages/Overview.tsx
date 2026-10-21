@@ -385,7 +385,7 @@ export default function Overview() {
 
         <div className="card">
           <div className="card-head"><h3>Per guest night{forecastMonth ? ` · ${forecastMonth.label}` : ''}</h3><Link className="link-btn" to="/budget">Budget</Link></div>
-          <table className="data overview-table">
+          <div className="x-scroll"><table className="data overview-table">
             <thead><tr><th>Utility</th><th className="num">Actual</th><th className="num">Forecast</th><th className="num">vs forecast</th></tr></thead>
             <tbody>
               {perGuest.map((g) => {
@@ -400,7 +400,7 @@ export default function Overview() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
           {hasForecast
             ? <p className="small muted" style={{ margin: '12px 0 0' }}>Forecast = the month's budgeted consumption ÷ budgeted guests (workbook budget block). Actual uses only days with both a reading and a guest count ({perGuest[0]?.actualDays ?? 0} days).</p>
             : <p className="small muted" style={{ margin: '12px 0 0' }}>No forecast for this month in the workbook budget block yet, so only the actual is shown.</p>}
