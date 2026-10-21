@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'rec
 import { BedDouble, Search } from 'lucide-react';
 import { useData } from '../store/data.ts';
 import { useCanEnter, useIsAdmin } from '../store/auth.ts';
-import { fetchRooms, fetchRoomReadings, addRooms, deleteRoom, roomUnitInfo } from '../store/rooms.ts';
+import { fetchRooms, fetchRoomReadings, addRooms, deleteRoom, hideRooms, roomUnitInfo } from '../store/rooms.ts';
 import { usePeriod } from '../components/PeriodFilter.tsx';
 import { ChartCard, axisStyle, tooltipStyle } from '../components/Chart.tsx';
 import { DataTable } from '../components/DataTable.tsx';
@@ -170,7 +170,7 @@ export default function Rooms() {
       {rooms.length > 0 && (missingRooms.length > 0 || extraRooms.length > 0) && (
         <Note kind="info">{rooms.length} rooms are set up; the hotel list has {HOTEL_ROOMS.length}.
           {missingRooms.length > 0 && <> {missingRooms.length} hotel room{missingRooms.length === 1 ? ' is' : 's are'} missing{admin ? ' (Manage rooms adds them in one click)' : ''}.</>}
-          {extraRooms.length > 0 && <> {extraRooms.length} room number{extraRooms.length === 1 ? ' is' : 's are'} not in the hotel list: {extraRooms.slice(0, 8).join(', ')}{extraRooms.length > 8 ? '…' : ''}.</>}
+          {extraRooms.length > 0 && <> {extraRooms.length} room number{extraRooms.length === 1 ? ' is' : 's are'} not in the hotel list: {extraRooms.slice(0, 8).join(', ')}{extraRooms.length > 8 ? '…' : ''}.{admin ? ' Manage rooms can hide them.' : ''}</>}
         </Note>)}
 
       <div className="kpis">
@@ -235,6 +235,7 @@ function ManageRooms({ rooms, onClose, onChanged }: { rooms: string[]; onClose: 
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState('');
   const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmHide, setConfirmHide] = useState(false);
   const parsed = useMemo(() => parseRoomList(text), [text]);
   const fresh = parsed.rooms.filter((r) => !rooms.includes(r));
   const missing = HOTEL_ROOMS.filter((r) => !rooms.includes(r));
@@ -251,7 +252,13 @@ function ManageRooms({ rooms, onClose, onChanged }: { rooms: string[]; onClose: 
       {missing.length === 0
         ? <Note kind="ok">All {HOTEL_ROOMS.length} hotel rooms are in the system.</Note>
         : <button className="btn primary" disabled={busy} onClick={() => void add(missing)}>Add the hotel's {HOTEL_ROOMS.length} rooms{missing.length !== HOTEL_ROOMS.length ? ` (${missing.length} missing)` : ''}</button>}
-      {extra.length > 0 && <Note kind="warn">Not in the hotel list: {extra.join(', ')}. Remove them below if they were added by mistake.</Note>}
+      {extra.length > 0 && <>
+        <Note kind="warn"><strong>{extra.length} room number{extra.length === 1 ? ' is' : 's are'} not in the hotel list</strong>, so the page counts {rooms.length} rooms instead of {HOTEL_ROOMS.length}: {extra.slice(0, 40).join(', ')}{extra.length > 40 ? ` … and ${extra.length - 40} more` : ''}.</Note>
+        <button className="btn danger" style={{ marginTop: 8 }} disabled={busy} onClick={() => setConfirmHide(true)}>Hide the {extra.length} rooms not in the hotel list</button>
+      </>}
+      {confirmHide && <ConfirmDialog title={`Hide ${extra.length} rooms?`} confirmLabel="Hide rooms" onCancel={() => setConfirmHide(false)}
+        message={`These rooms disappear from every page and from the totals, so the page shows the hotel's ${HOTEL_ROOMS.length} rooms. Nothing is deleted: their readings stay in the database and a room can be shown again by adding its number.`}
+        onConfirm={async () => { setBusy(true); try { await hideRooms(extra); notify.success('Rooms hidden', `${extra.length} room(s)`); onChanged(); } catch (e) { notify.error('Rooms not hidden', friendlyError(e)); } finally { setBusy(false); setConfirmHide(false); } }} />}
       <hr style={{ margin: '18px 0' }} />
       <Field label="Other room numbers to add" hint="Separated by spaces, commas or new lines. A range such as 101-130 adds every number in it; 001-010 keeps the zeros. Rooms that already exist are skipped."><textarea className="input mono" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder={'101-130'} /></Field>
       {text.trim() !== '' && <p className="small">{fresh.length} new room(s){parsed.rooms.length - fresh.length > 0 ? ` · ${parsed.rooms.length - fresh.length} already exist` : ''}{parsed.duplicates > 0 ? ` · ${parsed.duplicates} repeated in your list` : ''}{parsed.invalid.length > 0 ? ` · not valid: ${parsed.invalid.slice(0, 6).join(', ')}` : ''}</p>}

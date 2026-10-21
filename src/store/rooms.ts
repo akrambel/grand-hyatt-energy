@@ -54,6 +54,17 @@ export async function addRooms(rooms: string[]): Promise<void> {
     const chunk = rooms.slice(i, i + 200).map((room_number, j) => ({ room_number, sort_order: base + i + j }));
     const { error } = await supabase.from('rooms').upsert(chunk, { onConflict: 'room_number', ignoreDuplicates: true });
     if (error) throw new Error(friendlyError(error));
+    // a room hidden earlier comes back when its number is added again
+    const back = await supabase.from('rooms').update({ active: true }).in('room_number', rooms.slice(i, i + 200)).eq('active', false);
+    if (back.error) throw new Error(friendlyError(back.error));
+  }
+}
+
+/** Hides rooms from every page without deleting them or their readings (rooms.active = false). */
+export async function hideRooms(rooms: string[]): Promise<void> {
+  for (let i = 0; i < rooms.length; i += 200) {
+    const { error } = await supabase.from('rooms').update({ active: false }).in('room_number', rooms.slice(i, i + 200));
+    if (error) throw new Error(friendlyError(error));
   }
 }
 
