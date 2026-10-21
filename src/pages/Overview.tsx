@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowDown, ArrowUp, Bell, Droplets, Flame, Gauge as GaugeIcon, MapPin, PenSquare, Snowflake, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../store/auth.ts';
@@ -57,6 +57,18 @@ function ArcGauge({ value, min, max, unit }: { value: number | null; min: number
       </svg>
       <div className={clsx('g-value', value === null && 'na')}>{value === null ? 'No reading' : <>{fmtNumber(value, 1)}<small>{unit}</small></>}</div>
     </div>
+  );
+}
+
+/** Dots of the dark chart: small points, and a glowing ring on the latest reading. */
+function InkDot({ cx, cy, index, payload }: { cx?: number; cy?: number; index?: number; payload?: { value: number | null; last?: boolean } }) {
+  if (cx == null || cy == null || payload?.value == null) return <g key={index} />;
+  if (!payload.last) return <circle key={index} cx={cx} cy={cy} r={2} fill="#f5efee" />;
+  return (
+    <g key={index} className="ink-last">
+      <circle className="ink-pulse" cx={cx} cy={cy} r={9} fill="#e8798a" fillOpacity={0.28} />
+      <circle cx={cx} cy={cy} r={4.2} fill="#fff" stroke="#e8798a" strokeWidth={2} />
+    </g>
   );
 }
 
@@ -138,7 +150,8 @@ export default function Overview() {
     if (!readingDay) return [];
     const pts = dailySeries(totals[sel], addDays(readingDay, -(INK_DAYS - 1)), readingDay);
     const top = pts.filter((p) => p.value !== null).sort((a, b) => b.value! - a.value!).slice(0, 2).map((p) => p.date);
-    return pts.map((p) => ({ label: shortDate(p.date), value: p.value, peak: top.includes(p.date) ? p.value : null }));
+    const lastRead = pts.reduce((k, p, i) => (p.value !== null ? i : k), -1);
+    return pts.map((p, i) => ({ label: shortDate(p.date), value: p.value, peak: top.includes(p.date) ? p.value : null, last: i === lastRead }));
   }, [totals, sel, readingDay]);
   const readCount = cells.filter((c) => c.day?.total != null).length;
 
@@ -231,12 +244,16 @@ export default function Overview() {
                       <rect width="6" height="6" fill="#2a1418" />
                       <line x1="0" y1="0" x2="0" y2="6" stroke="#e8798a" strokeWidth="2.4" />
                     </pattern>
+                    <linearGradient id="ink-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f5efee" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="#f5efee" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <XAxis dataKey="label" tickLine={false} axisLine={false} interval={Math.ceil(INK_DAYS / 4) - 1} tick={{ fontSize: 11 }} />
                   <YAxis hide domain={[(min: number) => Math.max(0, min - (min * 0.25)), 'dataMax']} />
                   <Tooltip cursor={false} formatter={(v: number) => [`${fmtAuto(v)} ${unitOf(sel)}`, UTILITY_INFO[sel].label]} />
-                  <Bar dataKey="peak" tooltipType="none" fill="url(#ink-hatch)" stroke="#e8798a" strokeWidth={1} isAnimationActive={false} />
-                  <Line dataKey="value" type="stepAfter" stroke="#f5efee" strokeWidth={1.4} strokeDasharray="3 3" dot={{ r: 2.2, fill: '#f5efee', stroke: 'none' }} activeDot={{ r: 3.5 }} connectNulls={false} isAnimationActive={false} />
+                  <Bar dataKey="peak" tooltipType="none" fill="url(#ink-hatch)" stroke="#e8798a" strokeWidth={1} radius={[6, 6, 2, 2]} isAnimationActive={false} />
+                  <Area dataKey="value" type="monotone" stroke="#f5efee" strokeWidth={1.8} fill="url(#ink-fill)" dot={InkDot} activeDot={{ r: 4.5, fill: '#fff', stroke: '#e8798a', strokeWidth: 2 }} connectNulls={false} isAnimationActive={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -244,7 +261,8 @@ export default function Overview() {
         </div>
 
         {/* The resort, with each utility's reading as a glass label */}
-        <div className="hero-photo" style={{ backgroundImage: `url(${brandUrl('hero-wide.jpg')})` }}>
+        <div className="hero-photo">
+          <div className="hero-img" style={{ backgroundImage: `url(${brandUrl('resort-aerial.jpg')})` }} aria-hidden="true" />
           <span className="glass-chip status">
             <span className={clsx('dot', !readingDay ? '' : readingDay === today ? 'ok' : readingDay >= addDays(today, -1) ? '' : 'warn')} />
             <strong>{readingDay ? `Readings up to ${shortDate(readingDay)}` : 'No readings yet'}</strong>
@@ -324,7 +342,7 @@ export default function Overview() {
             <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={60} tickFormatter={(v: number) => fmtNumber(v)} />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(165,26,45,.06)' }} formatter={(v: number) => [`${fmtAuto(v)} ${unitOf(sel)}`, UTILITY_INFO[sel].label]} />
             {avgLine !== null && <ReferenceLine y={avgLine} stroke="#75696b" strokeDasharray="3 3" ifOverflow="extendDomain" />}
-            <Bar dataKey="value" name={unitOf(sel)} fill={HUE} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="value" name={unitOf(sel)} fill={HUE} radius={[6, 6, 2, 2]} isAnimationActive={false} />
           </BarChart>
         </ChartCard>
 

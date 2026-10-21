@@ -14,6 +14,7 @@ import { roomDetail } from '../lib/roomDetails.ts';
 import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
 import { clsx } from '../lib/format.ts';
 import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
+import { animatePage, driftShapes, moveGlider, pressFeedback, scrollToTop, smoothScroll } from '../lib/motion.ts';
 
 export function Logo({ className }: { className?: string }) {
   const [failed, setFailed] = useState(false);
@@ -170,6 +171,36 @@ export function Layout() {
   useEffect(() => subscribeSensors(), [subscribeSensors]);
   useEffect(() => { setMobileNav(false); }, [loc.pathname, setMobileNav]);
 
+  // Motion: page entrance on every page change, drifting background shapes, sliding menu highlight.
+  const appRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const gliderRef = useRef<HTMLDivElement>(null);
+  const firstGlide = useRef(true);
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page || status === 'loading') return;
+    let undo: (() => void) | undefined;
+    let frame = 0;
+    const t0 = performance.now();
+    const wait = () => {
+      if (page.querySelector('.card, .kpi, .round-cell') || performance.now() - t0 > 1000) undo = animatePage(page);
+      else frame = requestAnimationFrame(wait);
+    };
+    frame = requestAnimationFrame(wait);
+    return () => { cancelAnimationFrame(frame); undo?.(); };
+  }, [loc.pathname, status]);
+  useEffect(() => smoothScroll(), []);
+  useEffect(() => { scrollToTop(); }, [loc.pathname]);
+  useEffect(() => (appRef.current ? driftShapes(appRef.current) : undefined), []);
+  useEffect(() => (appRef.current ? pressFeedback(appRef.current) : undefined), []);
+  useEffect(() => {
+    const place = () => moveGlider(gliderRef.current, navRef.current?.querySelector<HTMLElement>('.nav-link.active') ?? null, firstGlide.current);
+    const frame = requestAnimationFrame(() => { place(); firstGlide.current = false; });
+    window.addEventListener('resize', place);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', place); };
+  }, [loc.pathname, sidebarCollapsed, admin, recorder]);
+
   const groups = useMemo(() => {
     const m = new Map<string, typeof NAV>();
     for (const n of NAV) {
@@ -190,13 +221,19 @@ export function Layout() {
   const openAlerts = useData((s) => s.alerts.filter((a) => !a.resolved_at && !a.acknowledged_at).length);
 
   return (
-    <div className={clsx('app', sidebarCollapsed && 'collapsed')}>
+    <div ref={appRef} className={clsx('app', sidebarCollapsed && 'collapsed')}>
+      <div className="ambient" aria-hidden="true">
+        <svg className="shape s1" viewBox="0 0 200 200"><path d="M44.7,-58.6C57.1,-47.7,65.7,-33.1,70.1,-16.9C74.5,-0.7,74.7,17.1,67.3,30.9C59.9,44.7,44.9,54.6,28.6,61.6C12.3,68.6,-5.3,72.7,-22.4,69C-39.5,65.3,-56.1,53.8,-65.5,38C-74.9,22.2,-77.1,2.1,-72.4,-15.6C-67.7,-33.3,-56.1,-48.6,-41.6,-59.1C-27.1,-69.6,-9.7,-75.3,4.6,-80.8C18.9,-86.3,32.3,-69.5,44.7,-58.6Z" transform="translate(100 100)" /></svg>
+        <svg className="shape s2" viewBox="0 0 200 200"><path d="M38.9,-47.5C50.4,-37.1,59.4,-24.6,63.2,-9.9C67,4.8,65.6,21.7,57.3,34.3C49,46.9,33.8,55.2,17.4,61.1C1,67,-16.6,70.5,-31.8,65C-47,59.5,-59.8,45,-66.2,28.4C-72.6,11.8,-72.6,-6.9,-65.9,-22.4C-59.2,-37.9,-45.8,-50.2,-31.6,-59.9C-17.4,-69.6,-2.4,-76.7,10.6,-74.2C23.6,-71.7,27.4,-57.9,38.9,-47.5Z" transform="translate(100 100)" /></svg>
+        <svg className="shape s3" viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" fill="none" strokeWidth="1.2" /><circle cx="100" cy="100" r="62" fill="none" strokeWidth="1" /><circle cx="100" cy="100" r="38" fill="none" strokeWidth="0.8" /></svg>
+      </div>
       <aside className={clsx('sidebar', mobileNavOpen && 'open')} aria-label="Main navigation">
         <NavLink to={recorder ? '/entry' : '/'} className="side-brand" title={`${ENV.propertyName} · Energy & Utilities`}>
           <Logo />
           <div className="name"><strong>Energy &amp; Utilities</strong><span>Engineering</span></div>
         </NavLink>
-        <nav>
+        <nav ref={navRef}>
+          <div className="nav-glider" ref={gliderRef} aria-hidden="true" />
           {groups.map(([g, items]) => (
             <div key={g}>
               <div className="nav-group">{g}</div>
@@ -226,7 +263,7 @@ export function Layout() {
           <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode" title="Light / dark">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
         </header>
         <div className="sheet">
-          <main className="page" id="content">
+          <main className="page" id="content" ref={pageRef}>
             {status === 'error' && <Note kind="bad"><strong>Data could not be loaded.</strong> {error} <button className="btn sm" onClick={() => void load()}>Retry</button></Note>}
             {status === 'loading' && <Loading />}
             {status !== 'loading' && <Outlet />}

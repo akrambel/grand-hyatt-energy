@@ -45,7 +45,7 @@ export default function Compare() {
           <p className="small muted">Occupancy: {formatDate(a)} {occA === null ? NA : `${(occA * 100).toFixed(1)} %`} · {formatDate(b)} {occB === null ? NA : `${(occB * 100).toFixed(1)} %`}</p></div>
         <ChartCard title="Relative comparison (% of Day B)" hasData={rows.some((r) => r.pct !== null)}>
           <BarChart data={rows.filter((r) => r.pct !== null).map((r) => ({ name: r.label, change: Math.round((r.pct as number) * 1000) / 10 }))}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} unit="%" width={50} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Bar isAnimationActive={false} dataKey="change" name="Change vs Day B (%)" fill={UTILITY_COLOR.energy} radius={[2, 2, 0, 0]} /></BarChart>
+            <Bar isAnimationActive={false} dataKey="change" name="Change vs Day B (%)" fill={UTILITY_COLOR.energy} radius={[6, 6, 2, 2]} /></BarChart>
         </ChartCard>
       </div>
     </>

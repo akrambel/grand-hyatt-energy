@@ -23,7 +23,7 @@ export default function Login() {
 
   return (
     <div className="login-wrap">
-      <aside className="login-hero" style={{ backgroundImage: `url(${brandUrl('hero-island.jpg')})` }}>
+      <aside className="login-hero" style={{ backgroundImage: `url(${brandUrl('resort-aerial.jpg')})` }}>
         <div className="scrim" aria-hidden="true" />
         <div className="hero-tag">
           <p className="lead">Every meter on the island, read in one place.</p>

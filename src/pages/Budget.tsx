@@ -67,7 +67,7 @@ export default function Budget() {
       <div style={{ marginBottom: 16 }}>
         <ChartCard title={`${info.label} – actual vs budget vs previous (${info.unit})`} hasData={chart.some((c) => c.Actual !== null || c.Budget !== null || c.Previous !== null)}>
           <BarChart data={chart}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="label" tick={axisStyle} /><YAxis tick={axisStyle} width={70} /><Tooltip contentStyle={tooltipStyle} /><Legend />
-            <Bar isAnimationActive={false} dataKey="Actual" fill="#a51a2d" radius={[2, 2, 0, 0]} /><Bar isAnimationActive={false} dataKey="Budget" fill="#a8998f" radius={[2, 2, 0, 0]} /><Bar isAnimationActive={false} dataKey="Previous" fill="#d9ccc1" radius={[2, 2, 0, 0]} /></BarChart>
+            <Bar isAnimationActive={false} dataKey="Actual" fill="#a51a2d" radius={[6, 6, 2, 2]} /><Bar isAnimationActive={false} dataKey="Budget" fill="#a8998f" radius={[6, 6, 2, 2]} /><Bar isAnimationActive={false} dataKey="Previous" fill="#d9ccc1" radius={[6, 6, 2, 2]} /></BarChart>
         </ChartCard>
       </div>
       <div className="card"><DataTable rows={rows} columns={cols} rowKey={(r) => r.label} searchable={false} pageSizes={[12]} defaultPageSize={12} /></div>

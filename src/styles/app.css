@@ -43,6 +43,7 @@
   --control-h: 36px;
   --font: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --fs-title: 26px; --fs-section: 16px; --fs-kpi: 28px; --fs-lead: 34px; --fs-body: 14px; --fs-small: 12px;
+  --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-in-out: cubic-bezier(.65, 0, .35, 1);
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -431,8 +432,48 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
   .chart-box { height: 200px; } .chart-box.tall { height: 240px; }
 }
 @media print { .sidebar, .header, .actions, .filters { display: none !important; } .main { padding: 0; } .sheet { border: 0; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { } }
 .room-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px 16px; margin: 8px 0 0; }
 .room-facts div { min-width: 0; }
 .room-facts dt { font-size: 12px; color: var(--muted); }
 .room-facts dd { margin: 2px 0 0; font-weight: 500; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+/* ── motion and brand shapes (GSAP drives them from src/lib/motion.ts) ───── */
+.app { position: relative; isolation: isolate; }
+.ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.ambient .shape { position: absolute; display: block; will-change: transform; }
+.ambient .shape path { fill: var(--brand); }
+.ambient .s1 { width: 620px; top: 40px; right: -180px; opacity: .09; }
+.ambient .s2 { width: 480px; bottom: -140px; left: 28%; opacity: .07; }
+.ambient .s3 { width: 380px; top: 38%; right: 8%; opacity: .14; }
+.ambient .s3 circle { stroke: var(--brand); }
+:root[data-theme='dark'] .ambient .s1 { opacity: .1; } :root[data-theme='dark'] .ambient .s2 { opacity: .08; }
+.sidebar, .main { position: relative; z-index: 1; }
+@media (max-width: 1100px) { .sidebar { position: fixed; z-index: 40; transition: transform .45s var(--ease-out), box-shadow .45s var(--ease-out); } }
+@media (max-width: 1100px) and (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
+
+.sidebar nav { position: relative; }
+.nav-glider { position: absolute; top: 0; left: 0; width: 0; height: 0; opacity: 0; border-radius: var(--radius-chip); background: var(--glass-strong); box-shadow: 0 4px 14px rgba(60, 40, 32, .08), inset 0 0 0 1px var(--glass-edge); pointer-events: none; }
+.nav-glider::before { content: ''; position: absolute; left: 6px; top: 50%; width: 3px; height: 14px; margin-top: -7px; border-radius: 2px; background: var(--brand); }
+.collapsed .nav-glider::before { display: none; }
+.nav-link { position: relative; z-index: 1; transition: color .2s var(--ease-out), background-color .2s var(--ease-out); }
+.nav-link.active { background: transparent; box-shadow: none; }
+.nav-link svg { transition: translate .3s var(--ease-out); }
+.nav-link:hover svg { translate: 2px 0; }
+
+.hero-photo { background: #9fb9b9; isolation: isolate; }
+.hero-photo .hero-img { position: absolute; inset: 0; z-index: -1; background: center / cover no-repeat; transform-origin: 60% 50%; will-change: transform; }
+
+/* hover moves use the separate `translate` property, so they never fight GSAP, which writes `transform` */
+.btn, .icon-btn, .glass-chip { transition: background-color .2s var(--ease-out), border-color .2s var(--ease-out), box-shadow .25s var(--ease-out), translate .25s var(--ease-out); }
+.round-cell, .card { transition: translate .35s var(--ease-out), box-shadow .35s var(--ease-out), background-color .25s var(--ease-out); }
+.round-cell:hover { translate: 0 -3px; box-shadow: var(--lift), 0 18px 40px rgba(60, 40, 32, .10); }
+.glass-chip:hover { translate: 0 -2px; }
+.btn.primary:hover:not(:disabled) { box-shadow: 0 8px 22px color-mix(in srgb, var(--brand) 30%, transparent); }
+
+.ink-last .ink-pulse { transform-box: fill-box; transform-origin: center; animation: ink-pulse 2.4s var(--ease-out) infinite; }
+@keyframes ink-pulse { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-last .ink-pulse { animation: none; }
+  .round-cell:hover, .glass-chip:hover, .nav-link:hover svg { translate: none; }
+}

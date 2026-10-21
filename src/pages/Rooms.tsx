@@ -190,7 +190,7 @@ export default function Rooms() {
             <Bar isAnimationActive={false} dataKey="other" name="OOO / OOS / House use" stackId="a" fill={COLORS.other} /><Bar isAnimationActive={false} dataKey="unknown" name="Status not set" stackId="a" fill={COLORS.unknown} /></BarChart>
         </ChartCard>
         <ChartCard title={`Average per room-day by status (${unit})`} chartId="rooms-average" hasData={avgChart.length > 0}>
-          <BarChart data={avgChart}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="value" name={unit} fill="#a51a2d" /></BarChart>
+          <BarChart data={avgChart}><CartesianGrid vertical={false} stroke="#efe7df" /><XAxis dataKey="name" tick={axisStyle} /><YAxis tick={axisStyle} width={64} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="value" name={unit} fill="#a51a2d" radius={[6, 6, 2, 2]} maxBarSize={72} /></BarChart>
         </ChartCard>
         <div className="card">
           <div className="card-head"><h3>By floor</h3><span className="meta">Rooms read and occupied on {formatDate(day)}</span></div>
@@ -213,7 +213,7 @@ export default function Rooms() {
           </div>
         </div>
         <ChartCard title={`Top 10 rooms – total in period (${unit})`} chartId="rooms-top" hasData={top.length > 0}>
-          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid horizontal={false} stroke="#efe7df" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="total" name={unit} fill="#a51a2d" cursor="pointer" onClick={(b: { room?: string }) => { if (b.room) setOpenRoom(b.room); }} /></BarChart>
+          <BarChart data={top} layout="vertical" margin={{ left: 20 }}><CartesianGrid horizontal={false} stroke="#efe7df" /><XAxis type="number" tick={axisStyle} /><YAxis type="category" interval={0} dataKey="room" tick={axisStyle} width={60} /><Tooltip contentStyle={tooltipStyle} /><Bar isAnimationActive={false} dataKey="total" name={unit} fill="#a51a2d" radius={[2, 6, 6, 2]} cursor="pointer" onClick={(b: { room?: string }) => { if (b.room) setOpenRoom(b.room); }} /></BarChart>
         </ChartCard>
       </div>
 
