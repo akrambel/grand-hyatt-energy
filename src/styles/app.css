@@ -82,7 +82,7 @@ code { font: 13px/1 ui-monospace, 'SFMono-Regular', Menlo, monospace; background
 /* ── shell: the L-frame and the sheet ───────────────────────────────────── */
 .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; background: var(--frame); }
 .app.collapsed { grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr); }
-.sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; background: var(--frame); z-index: 40; scrollbar-width: thin; }
+.sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; display: flex; flex-direction: column; background: var(--frame); z-index: 40; scrollbar-width: thin; }
 .side-brand { display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 16px; flex: none; text-decoration: none; color: var(--text); }
 .side-brand { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; height: auto; padding: 18px 16px 14px; }
 .side-brand img { display: block; height: 40px; width: auto; max-width: 180px; object-fit: contain; mix-blend-mode: multiply; }
@@ -500,3 +500,5 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
   table.data.stack tr.empty td { display: block; }
   table.data.stack tr.empty td::before { content: none; }
 }
+.phone-only { display: none; }
+@media (max-width: 860px) { .phone-only { display: inline-grid; } }

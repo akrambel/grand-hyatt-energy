@@ -64,6 +64,7 @@ function UserMenu({ roleLabel }: { roleLabel: string }) {
           <button role="menuitem" onClick={() => { setOpen(false); file.current?.click(); }}><Camera size={15} />{path ? 'Change photo' : 'Add a photo'}</button>
           {path && <button role="menuitem" onClick={() => { setOpen(false); void remove().then(() => notify.success('Photo removed')).catch((e: Error) => notify.error('Photo not removed', e.message)); }}><Trash2 size={15} />Remove photo</button>}
           <button role="menuitem" onClick={() => { setOpen(false); nav('/profile'); }}><UserCircle size={15} />My account</button>
+          <button role="menuitem" onClick={() => { setOpen(false); useAvatar.getState().clear(); void logout(); }}><LogOut size={15} />Sign out</button>
         </div>
       )}
     </div>
@@ -157,6 +158,7 @@ function GlobalSearch() {
 export function Layout() {
   const { sidebarCollapsed, toggleSidebar, mobileNavOpen, setMobileNav, theme, toggleTheme } = useUi();
   const profile = useAuth((s) => s.profile);
+  const logout = useAuth((s) => s.logout);
   const loadAvatar = useAvatar((s) => s.load);
   const admin = useIsAdmin();
   const recorder = useIsRecorder();
@@ -270,6 +272,7 @@ export function Layout() {
           </select>}
           {!recorder && <Notifications />}
           <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode" title="Light / dark">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
+          <button className="icon-btn phone-only" onClick={() => { useAvatar.getState().clear(); void logout(); }} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
         </header>
         <div className="sheet">
           <main className="page" id="content" ref={pageRef}>
