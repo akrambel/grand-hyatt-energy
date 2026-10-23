@@ -8,6 +8,7 @@ import { isConnectionError } from '../store/outbox.ts';
 import { validateEntry } from '../lib/validate.ts';
 import type { EntryResult } from '../lib/validate.ts';
 import { addDays, formatDate, localToday } from '../lib/dates.ts';
+import { scrollToTop } from '../lib/motion.ts';
 import { UTILITIES, UTILITY_INFO } from '../lib/types.ts';
 import type { Meter, Utility } from '../lib/types.ts';
 import { fmtAuto, fmtNumber } from '../lib/format.ts';
@@ -114,15 +115,19 @@ export default function DailyEntry() {
   const canEnter = useCanEnter();
   const [params] = useSearchParams();
   const [mode, setMode] = useState<'single' | 'grid'>('single');
-  useEffect(() => { if (params.get('meter')) setMode('single'); }, [params]);
+  const qr = !!params.get('meter');
+  useEffect(() => { if (qr) setMode('single'); }, [qr]);
   return (
     <>
-      <PageHead title="Daily Consumption Entry" subtitle="Enter the closing reading. The opening is always the last closing reading; it is asked for only once, for a meter’s first reading." />
+      {qr
+        ? <PageHead title="Meter reading" />
+        : <PageHead title="Daily Consumption Entry" subtitle="Enter the closing reading. The opening is always the last closing reading; it is asked for only once, for a meter’s first reading." />}
       {!canEnter && <Note kind="warn"><strong>Read-only access.</strong> Your account is not authorised to enter data. An administrator can enable this in Administration → Users.</Note>}
-      <div className="tabs" role="tablist">
-        <button className={clsx('tab', mode === 'single' && 'active')} onClick={() => setMode('single')}>Single meter</button>
-        <button className={clsx('tab', mode === 'grid' && 'active')} onClick={() => setMode('grid')}>Whole utility (all meters)</button>
-      </div>
+      {!qr && (
+        <div className="tabs" role="tablist">
+          <button className={clsx('tab', mode === 'single' && 'active')} onClick={() => setMode('single')}>Single meter</button>
+          <button className={clsx('tab', mode === 'grid' && 'active')} onClick={() => setMode('grid')}>Whole utility (all meters)</button>
+        </div>)}
       {mode === 'single' ? <SingleEntry disabled={!canEnter} /> : <GridEntry disabled={!canEnter} />}
     </>
   );
@@ -157,6 +162,7 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
   const [qrMissing, setQrMissing] = useState<string | null>(null);
   const applied = useRef<string | null>(null);
   const closingRef = useRef<HTMLInputElement>(null);
+  const [picking, setPicking] = useState(false);
   useEffect(() => {
     if (!qrCode || applied.current === qrCode || meters.length === 0) return;
     applied.current = qrCode;
@@ -164,7 +170,9 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     if (!m || !m.active) { setFromQr(null); setQrMissing(qrCode); return; }
     setQrMissing(null); setFromQr(m);
     setDate(today); setUtility(m.utility); setArea(m.area); setMeterId(m.id);
-    window.setTimeout(() => closingRef.current?.focus(), 400);
+    setPicking(false);
+    // stay at the top of the page: a plain focus() makes the browser scroll the box to the middle
+    window.setTimeout(() => { scrollToTop(); closingRef.current?.focus({ preventScroll: true }); }, 400);
   }, [qrCode, meters, today]);
 
   const active = useMemo(() => meters.filter((m) => m.active && m.utility === utility), [meters, utility]);
@@ -240,7 +248,13 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
       <div className="card">
         <h3>New reading</h3>
         {qrMissing && <Note kind="bad"><strong>Unknown meter code “{qrMissing}”.</strong> This QR sticker does not match an active meter. Choose the meter below and tell an administrator.</Note>}
-        {fromQr && meterId === fromQr.id && <Note kind="info"><QrCode size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />Opened from the QR sticker of <strong>{fromQr.name}</strong> ({fromQr.code}). Type the closing reading and save.</Note>}
+        {fromQr && !picking && meterId === fromQr.id ? (
+          <div className="qr-meter">
+            <QrCode size={18} aria-hidden="true" />
+            <div><strong>{fromQr.name}</strong><span>{UTILITY_INFO[fromQr.utility].label} · {fromQr.code} · {formatDate(date)}</span></div>
+            <button type="button" className="link-btn" onClick={() => setPicking(true)}>Change</button>
+          </div>
+        ) : (
         <div className="form-grid">
           <Field label="Date"><input className="input" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} /></Field>
           <Field label="Utility type">
@@ -258,7 +272,7 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
               {areaMeters.map((m) => <option key={m.id} value={m.id}>{m.name}{m.area && m.area !== m.name ? ` – ${m.area}` : ''}</option>)}
             </select>
           </Field>
-        </div>
+        </div>)}
 
         {meter && (
           <>

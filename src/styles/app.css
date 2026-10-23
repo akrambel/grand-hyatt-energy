@@ -368,7 +368,7 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
 .login-hero .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 55%; background: linear-gradient(180deg, rgba(10, 14, 16, 0) 0%, rgba(10, 14, 16, .62) 100%); } /* taste-skill-ignore: neutral scrim under text on a photo */
 .login-hero .hero-tag { position: relative; color: #fff; padding: 40px; max-width: 760px; }
 .login-hero .hero-tag p.lead { margin: 0; font-size: 32px; line-height: 38px; font-weight: 500; letter-spacing: -0.015em; }
-.login-hero .hero-tag p.where { margin: 12px 0 0; color: rgba(255, 255, 255, .86); font-size: 14px; }
+.login-hero .hero-tag p.where { margin: 0; color: rgba(255, 255, 255, .86); font-size: 14px; }
 .login-side { display: flex; flex-direction: column; justify-content: center; padding: 40px 48px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sheet); }
 .login-card { width: 100%; max-width: 360px; margin: 0 auto; }
 .login-card .logo { display: block; height: 48px; width: auto; margin: 0 0 40px; mix-blend-mode: multiply; }
@@ -517,3 +517,10 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
 .report-list small { color: var(--muted); font-size: 12px; }
 .report-item .pill { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 520px) { .offline-chip { padding: 0 9px; gap: 4px; } }
+
+/* Daily Entry opened from a meter QR sticker: the meter as one line instead of four pickers */
+.qr-meter { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--pill-info-bg, var(--surface)); border: 1px solid var(--rule); }
+.qr-meter > svg { flex: none; color: var(--brand); }
+.qr-meter > div { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.qr-meter strong { overflow-wrap: anywhere; }
+.qr-meter span { font-size: 13px; color: var(--muted); }

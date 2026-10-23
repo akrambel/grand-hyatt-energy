@@ -26,7 +26,6 @@ export default function Login() {
       <aside className="login-hero" style={{ backgroundImage: `url(${brandUrl('resort-aerial.jpg')})` }}>
         <div className="scrim" aria-hidden="true" />
         <div className="hero-tag">
-          <p className="lead">Every meter on the island, read in one place.</p>
           <p className="where">{ENV.propertyName} · Engineering</p>
         </div>
       </aside>
