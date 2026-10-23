@@ -12,6 +12,7 @@ import { UTILITY_INFO } from '../lib/types.ts';
 import type { BudgetRow, DailyMetric, Meter, MeterCategory, MeterDay, Reading, Tariff } from '../lib/types.ts';
 import { BASE_UNITS, UNIT_UTILITIES, normalizeUnit, priceToDisplay, toDisplay, toNative, unitFactor } from '../lib/units.ts';
 import type { UnitUtility } from '../lib/units.ts';
+import { isConnectionError, pendingReading, useOutbox } from './outbox.ts';
 
 export interface LpgLevel { id?: string; tank: number; level_fraction: number; recorded_at: string }
 export interface AlertRow {
@@ -157,6 +158,13 @@ export const useData = create<DataState>((set, get) => ({
       const meters = meterRows.map(toMeter).map((m) => withDisplayUnit(m, settings));
       const factorById = new Map(meters.map((m) => [m.id, m.unitFactor ?? 1]));
       const readings = readingRows.map(toReading).map((r) => toDisplayReading(r, (id) => factorById.get(id) ?? 1));
+      // readings typed offline and not sent yet stay visible (and count for the next opening)
+      for (const it of useOutbox.getState().items) {
+        const f = factorById.get(it.meter_id) ?? 1;
+        const p = pendingReading(it, (v) => (v === null ? null : toDisplay(v, f) as number));
+        const i = readings.findIndex((r) => r.meter_id === p.meter_id && r.reading_date === p.reading_date);
+        if (i >= 0) readings[i] = { ...readings[i], ...p }; else readings.push(p);
+      }
       const metrics = metricRows.map(toMetric);
       set({
         settings, meters, readings, metrics,
@@ -255,11 +263,28 @@ export async function saveReading(input: SaveReadingInput): Promise<Reading> {
   const factor = useData.getState().meterById.get(input.meter_id)?.unitFactor ?? 1;
   const nativeOpening = input.opening === null ? null : toNative(input.opening, factor);
   const nativeClosing = toNative(input.closing, factor);
-  const { data, error } = await supabase.from('readings')
-    .upsert({ meter_id: input.meter_id, reading_date: input.reading_date, opening: nativeOpening, closing: nativeClosing, note: input.note ?? null, source: 'manual' },
-      { onConflict: 'meter_id,reading_date' })
-    .select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at').single();
+  const queueOffline = (): Reading => {
+    useOutbox.getState().add({ meter_id: input.meter_id, reading_date: input.reading_date, opening: nativeOpening, closing: nativeClosing, note: input.note ?? null });
+    const local: Reading = { meter_id: input.meter_id, reading_date: input.reading_date, opening: input.opening, closing: input.closing, note: input.note ?? null, source: 'offline', updated_at: new Date().toISOString() };
+    useData.getState().upsertReadingLocal(local);
+    return local;
+  };
+  // No connection: keep it on this phone and send it later (source "offline" tells the page).
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
+  let res;
+  try {
+    res = await supabase.from('readings')
+      .upsert({ meter_id: input.meter_id, reading_date: input.reading_date, opening: nativeOpening, closing: nativeClosing, note: input.note ?? null, source: 'manual' },
+        { onConflict: 'meter_id,reading_date' })
+      .select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at').single();
+  } catch (e) {
+    if (isConnectionError(e)) return queueOffline();
+    throw e;
+  }
+  const { data, error } = res;
+  if (error && isConnectionError(error)) return queueOffline();
   if (error) throw new Error(friendlyError(error));
+  useOutbox.getState().remove(`${input.meter_id}|${input.reading_date}`);
   const reading = toDisplayReading(toReading(data as Record<string, unknown>), () => factor);
   useData.getState().upsertReadingLocal(reading);
   return reading;
@@ -285,4 +310,31 @@ export async function saveMetric(m: Partial<DailyMetric> & { metric_date: string
   const { error } = await supabase.from('daily_metrics').upsert(row, { onConflict: 'metric_date' });
   if (error) throw new Error(friendlyError(error));
   useData.getState().upsertMetricLocal(row);
+}
+
+/** Sends the readings typed offline; each one replaces its "waiting" copy when the server has it. */
+export async function sendOfflineReadings(): Promise<number> {
+  return useOutbox.getState().flush((row) => {
+    const factor = useData.getState().meterById.get(row.meter_id as string)?.unitFactor ?? 1;
+    useData.getState().upsertReadingLocal(toDisplayReading(toReading(row), () => factor));
+  });
+}
+
+/**
+ * Daily totals and occupancy of any date range, also outside the loaded reporting year (used for the
+ * monthly PDF of a month that belongs to the previous year). Inside the loaded year the store is used.
+ */
+export async function loadRangeData(start: string, end: string): Promise<{ totals: UtilityDayTotals; metricsMap: Map<string, DailyMetric>; metrics: DailyMetric[] }> {
+  const st = useData.getState();
+  const range = fiscalRange(st.fy, st.settings.fiscalStartMonth);
+  if (start >= range.start && end <= range.end) return { totals: st.totals, metricsMap: st.metricsMap, metrics: st.metrics };
+  const [readingRows, metricRows] = await Promise.all([
+    fetchAll<Record<string, unknown>>((a, b) => supabase.from('readings').select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at')
+      .gte('reading_date', addDays(start, -1)).lte('reading_date', end).order('reading_date').order('meter_id').range(a, b)),
+    fetchAll<Record<string, unknown>>((a, b) => supabase.from('daily_metrics').select('*').gte('metric_date', start).lte('metric_date', end).order('metric_date').range(a, b)),
+  ]);
+  const readings = readingRows.map(toReading).map((r) => toDisplayReading(r, (id) => st.meterById.get(id)?.unitFactor ?? 1));
+  const metrics = metricRows.map(toMetric);
+  const meterDays = buildMeterDays(st.meters, readings);
+  return { totals: dailyTotals(st.meters, meterDays), metricsMap: new Map(metrics.map((m) => [m.metric_date, m])), metrics };
 }

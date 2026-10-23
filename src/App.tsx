@@ -11,6 +11,7 @@ const DailyConsumption = lazy(() => import('./pages/DailyConsumption.tsx'));
 const UtilityPage = lazy(() => import('./pages/UtilityPage.tsx'));
 const Costs = lazy(() => import('./pages/Costs.tsx'));
 const Budget = lazy(() => import('./pages/Budget.tsx'));
+const Enpi = lazy(() => import('./pages/Enpi.tsx'));
 const Rooms = lazy(() => import('./pages/Rooms.tsx'));
 const Lpg = lazy(() => import('./pages/Lpg.tsx'));
 const Compare = lazy(() => import('./pages/Compare.tsx'));
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="lpg" element={<Lpg />} />
             <Route path="costs" element={<Costs />} />
             <Route path="budget" element={<Budget />} />
+            <Route path="enpi" element={<Enpi />} />
             <Route path="compare" element={<Compare />} />
             <Route path="climate" element={<Climate />} />
             <Route path="live" element={<Live />} />

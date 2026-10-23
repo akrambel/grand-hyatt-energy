@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Save, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Save, Trash2, AlertTriangle, CheckCircle2, QrCode } from 'lucide-react';
 import { useData, saveReading, deleteReading } from '../store/data.ts';
 import { useAuth, useCanEnter, useIsAdmin } from '../store/auth.ts';
 import { supabase, friendlyError } from '../lib/supabase.ts';
+import { isConnectionError } from '../store/outbox.ts';
 import { validateEntry } from '../lib/validate.ts';
 import type { EntryResult } from '../lib/validate.ts';
 import { addDays, formatDate, localToday } from '../lib/dates.ts';
@@ -16,7 +18,7 @@ import type { Column } from '../components/DataTable.tsx';
 import { clsx } from '../lib/format.ts';
 import { toDisplay } from '../lib/units.ts';
 
-interface Stored { meter_id: string; reading_date: string; opening: number | null; closing: number | null; entered_by?: string | null }
+interface Stored { meter_id: string; reading_date: string; opening: number | null; closing: number | null; entered_by?: string | null; pending?: boolean }
 interface Last { date: string; closing: number }
 
 async function fetchStored(meterIds: string[], dates: string[]): Promise<Stored[]> {
@@ -65,6 +67,34 @@ async function fetchLastBefore(meterIds: string[], date: string): Promise<Map<st
   return out;
 }
 
+/**
+ * Saved reading for `date` and last closing before it, for each meter. Uses the server; with no
+ * connection (basement plant rooms) it uses the readings already on this phone. Readings typed
+ * offline and not sent yet always count, so the next opening follows them.
+ */
+async function lookup(meterIds: string[], date: string): Promise<{ rows: Stored[]; last: Map<string, Last>; offline: boolean }> {
+  let rows: Stored[] = [], last = new Map<string, Last>(), offline = false;
+  try {
+    [rows, last] = await Promise.all([fetchStored(meterIds, [date]), fetchLastBefore(meterIds, date)]);
+  } catch (e) {
+    if (!isConnectionError(e)) throw e;
+    offline = true;
+  }
+  const local = useData.getState().readings.filter((r) => meterIds.includes(r.meter_id) && (offline || r.source === 'offline'));
+  for (const r of local) {
+    if (r.closing === null) continue;
+    if (r.reading_date === date) {
+      const i = rows.findIndex((x) => x.meter_id === r.meter_id);
+      const st: Stored = { meter_id: r.meter_id, reading_date: r.reading_date, opening: r.opening, closing: r.closing, entered_by: r.entered_by ?? null, pending: r.source === 'offline' };
+      if (i >= 0) rows[i] = st; else rows.push(st);
+    } else if (r.reading_date < date) {
+      const cur = last.get(r.meter_id);
+      if (!cur || cur.date < r.reading_date) last.set(r.meter_id, { date: r.reading_date, closing: r.closing });
+    }
+  }
+  return { rows, last, offline };
+}
+
 function recentStats(meterId: string, date: string, meterDays: ReturnType<typeof useData.getState>['meterDays']) {
   const vals: number[] = [];
   for (let i = 1; i <= 14; i++) { const c = meterDays.get(`${meterId}|${addDays(date, -i)}`)?.consumption; if (c !== null && c !== undefined) vals.push(c); }
@@ -82,7 +112,9 @@ function Issues({ r }: { r: EntryResult }) {
 
 export default function DailyEntry() {
   const canEnter = useCanEnter();
+  const [params] = useSearchParams();
   const [mode, setMode] = useState<'single' | 'grid'>('single');
+  useEffect(() => { if (params.get('meter')) setMode('single'); }, [params]);
   return (
     <>
       <PageHead title="Daily Consumption Entry" subtitle="Enter the closing reading. The opening is always the last closing reading; it is asked for only once, for a meter’s first reading." />
@@ -118,6 +150,23 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState<string | null>(null);
 
+  // Meter QR sticker: #/entry?meter=CODE opens this form on that meter with today's date.
+  const [params] = useSearchParams();
+  const qrCode = params.get('meter');
+  const [fromQr, setFromQr] = useState<Meter | null>(null);
+  const [qrMissing, setQrMissing] = useState<string | null>(null);
+  const applied = useRef<string | null>(null);
+  const closingRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!qrCode || applied.current === qrCode || meters.length === 0) return;
+    applied.current = qrCode;
+    const m = meters.find((x) => x.code.trim().toLowerCase() === qrCode.trim().toLowerCase());
+    if (!m || !m.active) { setFromQr(null); setQrMissing(qrCode); return; }
+    setQrMissing(null); setFromQr(m);
+    setDate(today); setUtility(m.utility); setArea(m.area); setMeterId(m.id);
+    window.setTimeout(() => closingRef.current?.focus(), 400);
+  }, [qrCode, meters, today]);
+
   const active = useMemo(() => meters.filter((m) => m.active && m.utility === utility), [meters, utility]);
   const areas = useMemo(() => [...new Set(active.map((m) => m.area))], [active]);
   const areaMeters = useMemo(() => active.filter((m) => !area || m.area === area), [active, area]);
@@ -131,7 +180,7 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     if (!meterId || !date) return;
     let cancelled = false;
     setStored((s) => ({ ...s, loading: true, error: null }));
-    Promise.all([fetchStored([meterId], [date]), fetchLastBefore([meterId], date)]).then(([rows, last]) => {
+    lookup([meterId], date).then(({ rows, last }) => {
       if (cancelled) return;
       const lastOne = last.get(meterId) ?? null;
       const prev = lastOne?.closing ?? null;
@@ -159,12 +208,13 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     if (!meter || !result || !result.canSave || result.closing === null) return;
     setBusy(true);
     try {
-      await saveReading({ meter_id: meter.id, reading_date: date, opening: result.storeOpening, closing: result.closing, note: note.trim() || null });
-      notify.success('Reading saved', `${meter.name}: ${result.consumption === null ? 'consumption N/A' : `${fmtAuto(result.consumption)} ${meter.unit}`} on ${formatDate(date)}`);
+      const saved = await saveReading({ meter_id: meter.id, reading_date: date, opening: result.storeOpening, closing: result.closing, note: note.trim() || null });
+      if (saved.source === 'offline') notify.info('Saved on this phone', `${meter.name}: no connection. It will be sent automatically when the phone is back online.`);
+      else notify.success('Reading saved', `${meter.name}: ${result.consumption === null ? 'consumption N/A' : `${fmtAuto(result.consumption)} ${meter.unit}`} on ${formatDate(date)}`);
       setClosingText(''); setOverride(false); setOpeningText(''); setNote('');
       // advance to next meter in the list for fast entry
       const i = areaMeters.findIndex((m) => m.id === meter.id);
-      if (i >= 0 && i < areaMeters.length - 1) setMeterId(areaMeters[i + 1].id);
+      if (!fromQr && i >= 0 && i < areaMeters.length - 1) setMeterId(areaMeters[i + 1].id);
       else setStored((s) => ({ ...s, existing: { meter_id: meter.id, reading_date: date, opening: result.storeOpening, closing: result.closing, entered_by: useAuth.getState().profile?.id ?? null } }));
     } catch (e) { notify.error('Reading not saved', friendlyError(e)); } finally { setBusy(false); }
   };
@@ -180,15 +230,17 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
     { key: 'c', header: 'Closing', num: true, value: (r) => r.closing, render: (r) => fmtNumber(r.closing, 3) },
     { key: 'u', header: 'Consumption', num: true, value: (r) => r.md?.consumption ?? null, render: (r) => fmtNumber(r.md?.consumption ?? null, 3) },
     { key: 's', header: 'Status', value: (r) => r.md?.status ?? '', render: (r) => <StatusPill kind={r.md?.status === 'ok' || r.md?.status === 'rollover' ? 'ok' : 'warn'}>{r.md?.status ?? 'N/A'}</StatusPill> },
-    { key: 'b', header: 'Entered by', value: (r) => (r.entered_by ? people.get(r.entered_by) ?? '' : r.source === 'import' ? 'Import' : ''),
-      render: (r) => (r.entered_by ? people.get(r.entered_by) ?? <span className="muted">Unknown</span> : <span className="muted">{r.source === 'import' ? 'Import' : '—'}</span>) },
-    ...(admin ? [{ key: 'x', header: '', value: () => '', render: (r: (typeof recentRows)[number]) => <button className="btn sm danger" onClick={() => setDel(r.id ?? null)} aria-label="Delete reading"><Trash2 size={13} /></button> } as Column<(typeof recentRows)[number]>] : []),
+    { key: 'b', header: 'Entered by', value: (r) => (r.source === 'offline' ? 'Waiting to send' : r.entered_by ? people.get(r.entered_by) ?? '' : r.source === 'import' ? 'Import' : ''),
+      render: (r) => (r.source === 'offline' ? <StatusPill kind="info">Waiting to send</StatusPill> : r.entered_by ? people.get(r.entered_by) ?? <span className="muted">Unknown</span> : <span className="muted">{r.source === 'import' ? 'Import' : '—'}</span>) },
+    ...(admin ? [{ key: 'x', header: '', value: () => '', render: (r: (typeof recentRows)[number]) => r.id ? <button className="btn sm danger" onClick={() => setDel(r.id ?? null)} aria-label="Delete reading"><Trash2 size={13} /></button> : null } as Column<(typeof recentRows)[number]>] : []),
   ];
 
   return (
     <div className="grid g2" style={{ alignItems: 'start' }}>
       <div className="card">
         <h3>New reading</h3>
+        {qrMissing && <Note kind="bad"><strong>Unknown meter code “{qrMissing}”.</strong> This QR sticker does not match an active meter. Choose the meter below and tell an administrator.</Note>}
+        {fromQr && meterId === fromQr.id && <Note kind="info"><QrCode size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />Opened from the QR sticker of <strong>{fromQr.name}</strong> ({fromQr.code}). Type the closing reading and save.</Note>}
         <div className="form-grid">
           <Field label="Date"><input className="input" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} /></Field>
           <Field label="Utility type">
@@ -212,14 +264,15 @@ function SingleEntry({ disabled }: { disabled: boolean }) {
           <>
             <hr style={{ border: 0, borderTop: '1px solid var(--border)', margin: '16px 0' }} />
             {stored.error && <Note kind="bad">{stored.error}</Note>}
-            {stored.existing && <Note kind="info">A reading for this meter and date is already saved (closing {fmtNumber(stored.existing.closing, 3)} {meter.unit}{stored.existing.entered_by ? `, entered by ${people.get(stored.existing.entered_by) ?? 'another user'}` : ''}). Saving will replace it.</Note>}
+            {stored.existing?.pending && <Note kind="info">A reading for this meter and date is saved on this phone and waiting to send (closing {fmtNumber(stored.existing.closing, 3)} {meter.unit}). Saving again will replace it.</Note>}
+            {stored.existing && !stored.existing.pending && <Note kind="info">A reading for this meter and date is already saved (closing {fmtNumber(stored.existing.closing, 3)} {meter.unit}{stored.existing.entered_by ? `, entered by ${people.get(stored.existing.entered_by) ?? 'another user'}` : ''}). Saving will replace it.</Note>}
             <div className="form-grid">
               <Field label={`Opening reading (${meter.unit})`} hint={override ? 'New meter’s starting value (meter replaced or reset)' : stored.prev !== null ? `Last closing reading – ${formatDate(stored.prevDate)}` : 'First reading of this meter – enter the opening once'}>
                 <input className="input mono" inputMode="decimal" value={override || stored.prev === null ? openingText : effectiveOpeningText} readOnly={!override && stored.prev !== null} disabled={disabled}
                   onChange={(e) => setOpeningText(e.target.value)} placeholder="e.g. 500" />
               </Field>
               <Field label={`Closing reading (${meter.unit})`}>
-                <input className={clsx('input mono', result && result.errors.some((e) => e.code.startsWith('closing')) && 'invalid')} inputMode="decimal" value={closingText} disabled={disabled}
+                <input ref={closingRef} className={clsx('input mono', result && result.errors.some((e) => e.code.startsWith('closing')) && 'invalid')} inputMode="decimal" value={closingText} disabled={disabled}
                   onChange={(e) => { setClosingText(e.target.value); setConfirmed({ discontinuity: false, jump: false, overwrite: false }); }} placeholder="e.g. 583" />
               </Field>
               <Field label="Consumption">
@@ -277,7 +330,7 @@ function GridEntry({ disabled }: { disabled: boolean }) {
     let cancelled = false;
     setLoading(true);
     const ids = rows.map((m) => m.id);
-    Promise.all([fetchStored(ids, [date]), fetchLastBefore(ids, date)]).then(([data, last]) => {
+    lookup(ids, date).then(({ rows: data, last }) => {
       if (cancelled) return;
       const s: typeof stored = {}; const t: Record<string, string> = {}; const o: Record<string, string> = {};
       for (const m of rows) {
@@ -315,13 +368,14 @@ function GridEntry({ disabled }: { disabled: boolean }) {
 
   const saveAll = async () => {
     setBusy(true);
-    let saved = 0; const failed: string[] = [];
+    let saved = 0, queued = 0; const failed: string[] = [];
     for (const [id, r] of savable) {
-      try { await saveReading({ meter_id: id, reading_date: date, opening: r.storeOpening, closing: r.closing as number }); saved++; }
+      try { const x = await saveReading({ meter_id: id, reading_date: date, opening: r.storeOpening, closing: r.closing as number }); if (x.source === 'offline') queued++; else saved++; }
       catch (e) { failed.push(`${meters.find((m) => m.id === id)?.name}: ${friendlyError(e)}`); }
     }
     setBusy(false);
     if (saved) notify.success(`${saved} reading${saved === 1 ? '' : 's'} saved`, formatDate(date));
+    if (queued) notify.info(`${queued} reading${queued === 1 ? '' : 's'} saved on this phone`, 'No connection. They will be sent automatically when the phone is back online.');
     if (failed.length) notify.error(`${failed.length} reading(s) failed`, failed.slice(0, 3).join('; '));
     setDate((d) => d); // refresh stored values
     setStored((s) => { const n = { ...s }; for (const [id, r] of savable) if (!failed.some((f) => f.startsWith(meters.find((m) => m.id === id)?.name ?? '\0'))) n[id] = { prev: s[id]?.prev ?? null, prevDate: s[id]?.prevDate ?? null, existing: { meter_id: id, reading_date: date, opening: r.storeOpening, closing: r.closing } }; return n; });

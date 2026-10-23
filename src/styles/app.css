@@ -398,7 +398,7 @@ table.data .btn.danger:hover:not(:disabled) { color: var(--negative); background
   .collapsed .side-foot { flex-direction: row; }
   .header { padding: 0 8px; }
   .menu-btn, .mobile-title { display: inline-flex; }
-  .mobile-title { font-weight: 600; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-title { display: block; font-weight: 600; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header .search { position: static; transform: none; width: 280px; }
   .header .crumb { display: none; }
 }
@@ -502,3 +502,18 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
 }
 .phone-only { display: none; }
 @media (max-width: 860px) { .phone-only { display: inline-grid; } }
+
+/* offline entry: readings waiting on this phone */
+.offline-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--radius-chip); border: 1px solid var(--warning-edge); background: var(--pill-warning-bg); color: var(--warning-ink); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.offline-chip.off { border-color: var(--control); background: var(--surface); color: var(--text); }
+.offline-chip.bad { border-color: var(--negative); color: var(--negative); }
+.kv dd small.over { color: var(--negative); } .kv dd small.under { color: var(--positive); }
+
+/* Saved monthly PDFs (Monthly Reports) */
+.saved-reports .card-head h3 { display: inline-flex; align-items: center; gap: 8px; }
+.report-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.report-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 12px; min-width: 0; }
+.report-list li > span { display: flex; flex-direction: column; min-width: 0; }
+.report-list small { color: var(--muted); font-size: 12px; }
+.report-item .pill { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 520px) { .offline-chip { padding: 0 9px; gap: 4px; } }

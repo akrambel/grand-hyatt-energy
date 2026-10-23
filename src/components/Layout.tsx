@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Camera, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
+import { Bell, Camera, FileText, Wifi, WifiOff, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
 import { useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
-import { useData } from '../store/data.ts';
+import { useData, sendOfflineReadings } from '../store/data.ts';
+import { useOutbox } from '../store/outbox.ts';
+import { useReports } from '../store/reports.ts';
+import { toDisplay } from '../lib/units.ts';
 import { useSensors } from '../store/sensors.ts';
 import { useAvatar, AVATAR_TYPES } from '../store/avatar.ts';
 import { supabase } from '../lib/supabase.ts';
@@ -12,8 +15,8 @@ import { NAV } from './nav.ts';
 import { floorOf, isHotelRoom } from '../lib/rooms.ts';
 import { roomDetail } from '../lib/roomDetails.ts';
 import { Toasts, useClickOutside, Loading, Note } from './ui.tsx';
-import { clsx } from '../lib/format.ts';
-import { fiscalLabel, fiscalYearOf, localToday, timeAgo } from '../lib/dates.ts';
+import { clsx, fmtNumber } from '../lib/format.ts';
+import { fiscalLabel, fiscalYearOf, formatDate, localToday, timeAgo } from '../lib/dates.ts';
 import { animatePage, driftShapes, moveGlider, holdScroll, pressFeedback, scrollToTop, smoothScroll } from '../lib/motion.ts';
 
 export function Logo({ className }: { className?: string }) {
@@ -78,6 +81,16 @@ function Notifications() {
   const reload = useData((s) => s.reloadAlerts);
   const nav = useNavigate();
   const unread = alerts.filter((a) => !a.resolved_at && !a.acknowledged_at);
+  const reports = useReports((s) => s.reports);
+  const seen = useReports((s) => s.seen);
+  const markSeen = useReports((s) => s.markSeen);
+  const openReport = useReports((s) => s.open);
+  const newReport = reports[0] && (!seen || reports[0].month_key > seen) ? reports[0] : null;
+  const count = unread.length + (newReport ? 1 : 0);
+  const download = async () => {
+    if (!newReport) return;
+    try { await openReport(newReport); markSeen(); } catch (e) { notify.error('Could not open the report', e instanceof Error ? e.message : String(e)); }
+  };
   const ack = async (id: number) => {
     const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase.from('alerts').update({ acknowledged_at: new Date().toISOString(), acknowledged_by: u.user?.id ?? null }).eq('id', id);
@@ -85,11 +98,21 @@ function Notifications() {
   };
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="icon-btn" onClick={() => setOpen(!open)} aria-label={`Notifications (${unread.length} unread)`}>
-        <Bell size={17} />{unread.length > 0 && <span className="badge">{unread.length > 99 ? '99+' : unread.length}</span>}
+      <button className="icon-btn" onClick={() => setOpen(!open)} aria-label={`Notifications (${count} unread)`}>
+        <Bell size={17} />{count > 0 && <span className="badge">{count > 99 ? '99+' : count}</span>}
       </button>
       {open && (
         <div className="drawer">
+          {newReport && (
+            <div className="item report-item">
+              <div><span className="pill info"><FileText size={12} />Monthly report ready</span></div>
+              <div style={{ marginTop: 6 }}>The {newReport.label} PDF report is saved in the website.</div>
+              <div className="small muted">{timeAgo(newReport.created_at)}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button className="btn sm primary" onClick={() => void download()}>Download PDF</button>
+                <button className="btn sm" onClick={() => markSeen()}>Dismiss</button>
+              </div>
+            </div>)}
           {unread.length === 0 && <div className="item muted">No open alerts.</div>}
           {unread.slice(0, 12).map((a) => (
             <div className="item" key={a.id}>
@@ -99,6 +122,65 @@ function Notifications() {
               <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void ack(a.id)}>Acknowledge</button>
             </div>))}
           <div className="item"><button className="link-btn" onClick={() => { setOpen(false); nav('/alerts'); }}>View all alerts</button></div>
+        </div>)}
+    </div>
+  );
+}
+
+/** Offline entry: shows "Offline" and readings waiting on this phone; sends them when the connection is back. */
+function OfflineChip() {
+  const items = useOutbox((s) => s.items);
+  const sending = useOutbox((s) => s.sending);
+  const remove = useOutbox((s) => s.remove);
+  const meterById = useData((s) => s.meterById);
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine !== false);
+  const [open, setOpen] = useState(false);
+  const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
+
+  const send = async () => {
+    const before = useOutbox.getState().items.length;
+    const n = await sendOfflineReadings();
+    if (n) notify.success(`${n} offline reading${n === 1 ? '' : 's'} sent`, 'They are now saved on the server.');
+    else if (before && navigator.onLine !== false && useOutbox.getState().items.some((x) => !x.error)) notify.info('Still waiting', 'The server cannot be reached yet. Readings stay on this phone.');
+  };
+  useEffect(() => {
+    const up = () => { setOnline(true); void sendOfflineReadings().then((n) => { if (n) notify.success(`${n} offline reading${n === 1 ? '' : 's'} sent`, 'They are now saved on the server.'); }); };
+    const down = () => setOnline(false);
+    window.addEventListener('online', up); window.addEventListener('offline', down);
+    void sendOfflineReadings();
+    // some phones report "online" in a basement with no real connection: retry quietly every 30 s
+    const t = window.setInterval(() => { if (useOutbox.getState().items.some((x) => !x.error)) void sendOfflineReadings(); }, 30000);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); window.clearInterval(t); };
+  }, []);
+
+  if (online && items.length === 0) return null;
+  const refused = items.filter((x) => x.error);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className={clsx('offline-chip', !online && 'off', refused.length > 0 && 'bad')} onClick={() => setOpen(!open)} aria-label="Readings saved on this phone">
+        {online ? <Wifi size={14} /> : <WifiOff size={14} />}
+        <span>{!online && items.length === 0 ? 'Offline' : `${items.length} waiting`}</span>
+      </button>
+      {open && (
+        <div className="drawer">
+          <div className="item">
+            <strong>{online ? 'Connected' : 'No connection'}</strong>
+            <div className="small muted">Readings typed without a connection are kept on this phone and sent automatically when it is back online. Do not sign out until they are sent.</div>
+          </div>
+          {items.length === 0 && <div className="item muted">Nothing waiting.</div>}
+          {items.map((it) => {
+            const m = meterById.get(it.meter_id);
+            const shown = toDisplay(it.closing, m?.unitFactor ?? 1);
+            return (
+              <div className="item" key={it.key}>
+                <div><strong>{m?.name ?? 'Meter'}</strong> · {formatDate(it.reading_date)}</div>
+                <div className="small">Closing {fmtNumber(shown, 3)} {m?.unit ?? ''}</div>
+                {it.error
+                  ? <><div className="small" style={{ color: 'var(--bad)' }}>Not accepted: {it.error}</div><button className="btn sm" style={{ marginTop: 6 }} onClick={() => remove(it.key)}>Discard</button></>
+                  : <div className="small muted">Waiting to send · typed {timeAgo(it.queued_at)}</div>}
+              </div>);
+          })}
+          {items.some((x) => !x.error) && <div className="item"><button className="btn sm primary" disabled={sending || !online} onClick={() => void send()}>{sending ? 'Sending…' : 'Send now'}</button></div>}
         </div>)}
     </div>
   );
@@ -170,6 +252,16 @@ export function Layout() {
   useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (profile?.id) void loadAvatar(profile.id); }, [profile?.id, loadAvatar]);
   useEffect(() => subscribe(), [subscribe]);
+  // Monthly PDF: viewers see saved reports; the first administrator visit of a month saves last month's.
+  useEffect(() => {
+    if (status !== 'ready' || recorder || !profile) return;
+    const r = useReports.getState();
+    void r.list().then(async () => {
+      if (!admin) return;
+      const made = await useReports.getState().ensureLastMonth();
+      if (made) notify.success(`${made.label} report saved`, 'The monthly PDF is now in the notifications and on Monthly Reports for everybody who views reports.');
+    });
+  }, [status, recorder, admin, profile]);
   useEffect(() => subscribeSensors(), [subscribeSensors]);
   useEffect(() => { setMobileNav(false); }, [loc.pathname, setMobileNav]);
   // Phone menu: Escape closes it, and the page behind does not scroll while it is open.
@@ -270,6 +362,7 @@ export function Layout() {
           {!recorder && <select className="input desktop-only" value={fy} onChange={(e) => void setFy(Number(e.target.value))} aria-label="Reporting year">
             {fyOptions.sort((a, b) => b - a).map((y) => <option key={y} value={y}>{fiscalLabel(y, settings.fiscalStartMonth)}</option>)}
           </select>}
+          <OfflineChip />
           {!recorder && <Notifications />}
           <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle light/dark mode" title="Light / dark">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
           <button className="icon-btn phone-only" onClick={() => { useAvatar.getState().clear(); void logout(); }} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>

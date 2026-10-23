@@ -6,6 +6,12 @@ import { notify } from '../../store/ui.ts';
 import type { Settings } from '../../lib/settings.ts';
 import { UNIT_CHOICES, UNIT_UTILITIES } from '../../lib/units.ts';
 import type { UnitSettings, VolumeUnit } from '../../lib/units.ts';
+import { BASE_UNITS, tidy, unitFactor } from '../../lib/units.ts';
+import { UTILITIES, UTILITY_INFO } from '../../lib/types.ts';
+import type { Utility } from '../../lib/types.ts';
+
+/** EnPI targets are stored per base unit (kWh, m³, L) and edited in the display unit chosen below. */
+const targetFactor = (u: Utility, units: UnitSettings): number => (u === 'energy' ? 1 : unitFactor(BASE_UNITS[u], units[u]));
 
 const num = (s: string): number | null => { const t = s.trim(); if (t === '') return null; const n = Number(t); return Number.isFinite(n) ? n : NaN; };
 const txt = (v: number | null) => (v === null ? '' : String(v));
@@ -18,6 +24,7 @@ export default function SettingsTab() {
     lat: txt(settings.site.latitude), lon: txt(settings.site.longitude), siteName: settings.site.name,
     z: String(settings.anomaly.zThreshold), minSamples: String(settings.anomaly.minSamples), windowDays: String(settings.anomaly.windowDays), anomalyOn: settings.anomaly.enabled,
     jump: String(settings.entry.jumpFactor), units: { ...settings.units } as UnitSettings, roomUnit: settings.roomMeterUnit, caps: settings.lpg.capacityLitres.map(String),
+    targets: Object.fromEntries(UTILITIES.map((u) => [u, settings.enpiTargets[u] === null ? '' : String(tidy((settings.enpiTargets[u] as number) * targetFactor(u, settings.units)))])) as Record<Utility, string>,
   }));
   const [busy, setBusy] = useState(false);
 
@@ -40,6 +47,9 @@ export default function SettingsTab() {
   const caps = s.caps.map((c) => num(c));
   if (caps.some((c) => c === null || Number.isNaN(c) || (c as number) <= 0)) problems.push('Tank capacities must be positive numbers.');
 
+  const targets = Object.fromEntries(UTILITIES.map((u) => [u, num(s.targets[u])])) as Record<Utility, number | null>;
+  if (UTILITIES.some((u) => targets[u] !== null && (Number.isNaN(targets[u]) || (targets[u] as number) <= 0))) problems.push('Targets per occupied room must be positive numbers (or empty for no target).');
+
   const save = async () => {
     setBusy(true);
     const t = Object.fromEntries(thr.map((x) => [x.k, { enabled: x.enabled, min: x.minN, max: x.maxN }]));
@@ -47,6 +57,7 @@ export default function SettingsTab() {
       { key: 'thresholds', value: t }, { key: 'alert_cooldown_minutes', value: cool }, { key: 'device_offline_minutes', value: off },
       { key: 'site', value: { name: s.siteName, latitude: lat, longitude: lon } },
       { key: 'anomaly', value: { enabled: s.anomalyOn, zThreshold: z, minSamples: ms, windowDays: wd } }, { key: 'entry', value: { jumpFactor: jf } }, { key: 'lpg', value: { capacityLitres: caps } }, { key: 'units', value: s.units }, { key: 'room_meter_unit', value: s.roomUnit },
+      { key: 'enpi_targets', value: Object.fromEntries(UTILITIES.map((u) => [u, targets[u] === null ? null : tidy((targets[u] as number) / targetFactor(u, s.units))])) },
     ];
     const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -83,6 +94,14 @@ export default function SettingsTab() {
               <option value="m³">Cubic metres (m³)</option><option value="L">Litres (L)</option><option value="kWh">Energy (kWh)</option>
             </select>
           </Field>
+        </div></div>
+      <div className="card"><h3>Targets per occupied room (EnPI)</h3>
+        <Note kind="info">The energy performance indicators management reads: consumption ÷ occupied room-nights (ISO 50001 EnPI). Only days that have both a reading and an occupied-rooms figure count. Leave a box empty for no target.</Note>
+        <div className="form-grid">
+          {UTILITIES.map((u) => {
+            const unit = u === 'energy' ? 'kWh' : s.units[u as keyof UnitSettings];
+            return <Field key={u} label={`${UTILITY_INFO[u].label} (${unit} per occupied room)`}><input className="input mono" inputMode="decimal" placeholder="No target" value={s.targets[u]} onChange={(e) => setS({ ...s, targets: { ...s.targets, [u]: e.target.value } })} /></Field>;
+          })}
         </div></div>
       <div className="card"><h3>Property & weather</h3>
         <div className="form-grid">

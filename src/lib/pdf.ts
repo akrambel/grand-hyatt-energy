@@ -20,6 +20,8 @@ export interface PdfReport {
   timezone: string;
   filename: string;
   landscape?: boolean;
+  /** true: only return the file (for saving it in the website) instead of downloading it. */
+  noDownload?: boolean;
 }
 
 const TEAL: [number, number, number] = [165, 26, 45]; // Grand Hyatt red
@@ -37,7 +39,8 @@ async function loadLogo(): Promise<{ data: string; w: number; h: number } | null
       await new Promise<void>((ok, bad) => { img.onload = () => ok(); img.onerror = () => bad(new Error('logo')); img.src = url; });
       const w = img.naturalWidth || 240, h = img.naturalHeight || 64;
       const canvas = document.createElement('canvas');
-      canvas.width = w * 2; canvas.height = h * 2; // keeps aspect ratio, rasterises SVG too
+      const k = Math.min(2, 640 / w); // sharp at print size without making the PDF heavy
+      canvas.width = Math.round(w * k); canvas.height = Math.round(h * k); // keeps aspect ratio, rasterises SVG too
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -46,7 +49,7 @@ async function loadLogo(): Promise<{ data: string; w: number; h: number } | null
   } catch { return null; }
 }
 
-export async function buildPdf(r: PdfReport): Promise<void> {
+export async function buildPdf(r: PdfReport): Promise<Blob> {
   const doc = new jsPDF({ orientation: r.landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
@@ -57,7 +60,7 @@ export async function buildPdf(r: PdfReport): Promise<void> {
   // header: white band with the property logo (kept in proportion), brand-red rule underneath
   if (logo) {
     const h = 17, w = Math.min(70, (logo.w / logo.h) * h);
-    doc.addImage(logo.data, 'PNG', M, 5, w, w * (logo.h / logo.w));
+    doc.addImage(logo.data, 'PNG', M, 5, w, w * (logo.h / logo.w), 'logo', 'FAST');
   } else {
     doc.setTextColor(...TEAL); doc.setFont('times', 'bold'); doc.setFontSize(15); doc.text(r.property, M, 14);
   }
@@ -137,5 +140,7 @@ export async function buildPdf(r: PdfReport): Promise<void> {
     doc.text(`Page ${p} of ${pages}`, W - M, H - 7.5, { align: 'right' });
     doc.setFontSize(6.5); doc.text('Confidential – for internal engineering and management use.', M, H - 4);
   }
-  downloadBlob(doc.output('blob'), r.filename);
+  const blob = doc.output('blob');
+  if (!r.noDownload) downloadBlob(blob, r.filename);
+  return blob;
 }

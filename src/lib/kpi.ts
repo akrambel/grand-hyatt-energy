@@ -209,3 +209,36 @@ export function guestForecast(
     projected, budgetTotal: b?.[field] ?? null,
   };
 }
+
+// ------------------------------------------------- per occupied room (EnPI) ----
+
+/** Target per occupied room in the display unit (targets are stored per kWh, m³ or L). */
+export function enpiTarget(targets: Record<Utility, number | null>, utility: Utility, displayFactor: number): number | null {
+  const t = targets[utility];
+  return t === null ? null : Math.round(t * displayFactor * 1e6) / 1e6;
+}
+
+export interface EnpiMonth {
+  key: string; label: string; start: string; end: string;
+  /** consumption ÷ occupied room-nights, days with both values only */
+  value: number | null;
+  consumption: number | null;
+  roomNights: number | null;
+  days: number;
+  /** (value − target) ÷ target */
+  vsTarget: number | null;
+}
+
+/** Monthly consumption per occupied room (ISO 50001 energy performance indicator) against a target. */
+export function enpiByMonth(
+  totals: Map<string, DayTotal>, metrics: Map<string, DailyMetric>,
+  months: Array<{ key: string; label: string; start: string; end: string }>, target: number | null, upTo: string,
+): EnpiMonth[] {
+  return months.filter((m) => m.start <= upTo).map((m) => {
+    const r = pairedIntensity(totals, metrics, 'occupied_rooms', m.start, m.end < upTo ? m.end : upTo);
+    return {
+      key: m.key, label: m.label, start: m.start, end: m.end, value: r.value, consumption: r.consumption, roomNights: r.denominator, days: r.days,
+      vsTarget: r.value !== null && target ? Math.round(((r.value - target) / target) * 10000) / 10000 : null,
+    };
+  });
+}

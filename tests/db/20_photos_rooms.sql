@@ -94,3 +94,20 @@ select case when (select count(*) from public.rooms where room_number between '7
              and (select count(*) from public.rooms where room_number between '801' and '825') = 25
              and exists (select 1 from public.rooms where room_number = '363')
   then 'PASS tail rooms added' else 'FAIL tail rooms' end;
+
+-- ------------------------------------------------- 0010: monthly reports ----
+reset role;
+insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000a9'), ('00000000-0000-0000-0000-0000000000a8') on conflict do nothing;
+insert into public.profiles(id, username, display_name, role, active) values
+ ('00000000-0000-0000-0000-0000000000a9','report_admin','Report Admin','admin',true),
+ ('00000000-0000-0000-0000-0000000000a8','report_rec','Report Recorder','recorder',true) on conflict do nothing;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a9');
+insert into public.monthly_reports (month_key, label, path, size_bytes, created_by) values ('2026-10', 'Oct 2026', '2026-10.pdf', 1000, '00000000-0000-0000-0000-0000000000a9');
+select case when count(*) = 1 then 'PASS reports: admin adds a monthly report' else 'FAIL reports admin insert' end from public.monthly_reports;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a8');
+select case when count(*) = 0 then 'PASS reports: recorder cannot list reports' else 'FAIL recorder sees reports' end from public.monthly_reports;
+do $$ begin insert into public.monthly_reports (month_key, label, path) values ('2026-11', 'Nov 2026', 'x.pdf'); raise notice 'FAIL reports: recorder insert accepted'; exception when insufficient_privilege then raise notice 'PASS reports: recorder cannot add'; end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000e2');
+select case when count(*) = 1 then 'PASS reports: user can list reports' else 'FAIL user cannot list reports' end from public.monthly_reports;
+do $$ begin insert into public.monthly_reports (month_key, label, path) values ('2026-12', 'Dec 2026', 'x.pdf'); raise notice 'FAIL reports: user insert accepted'; exception when insufficient_privilege then raise notice 'PASS reports: user cannot add'; end $$;
+reset role;

@@ -1,4 +1,4 @@
-import { LayoutDashboard, CalendarDays, PenSquare, Zap, Droplets, Flame, Snowflake, Wallet, Scale, Fuel, BedDouble, GitCompare, Thermometer, Radio, CalendarRange, BarChart3, Bell, Settings, UserCircle } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, PenSquare, Zap, Droplets, Flame, Snowflake, Wallet, Scale, Fuel, BedDouble, GitCompare, Thermometer, Radio, CalendarRange, BarChart3, Bell, Settings, UserCircle, Gauge } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem { path: string; label: string; icon: LucideIcon; group: string; adminOnly?: boolean; keywords?: string }
@@ -15,6 +15,7 @@ export const NAV: NavItem[] = [
   { path: '/lpg', label: 'LPG Tanks', icon: Fuel, group: 'Utilities', keywords: 'tank level' },
   { path: '/costs', label: 'Costs', icon: Wallet, group: 'Analysis', keywords: 'tariff price sar' },
   { path: '/budget', label: 'Budget vs Actual', icon: Scale, group: 'Analysis', keywords: 'variance previous year' },
+  { path: '/enpi', label: 'Per Occupied Room', icon: Gauge, group: 'Analysis', keywords: 'enpi kpi kwh por per occupied room target iso 50001 energy performance indicator water' },
   { path: '/compare', label: 'Daily Comparison', icon: GitCompare, group: 'Analysis', keywords: 'compare days anomaly' },
   { path: '/climate', label: 'Climate & Occupancy', icon: Thermometer, group: 'Environment', keywords: 'temperature occupancy rooms guests weather' },
   { path: '/live', label: 'Live Environment', icon: Radio, group: 'Environment', keywords: 'esp32 sensor humidity pressure bmp280 aht20' },

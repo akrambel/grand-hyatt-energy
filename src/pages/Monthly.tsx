@@ -1,6 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts';
 import { useData } from '../store/data.ts';
+import { useReports } from '../store/reports.ts';
+import type { MonthlyReport } from '../store/reports.ts';
+import { useIsAdmin } from '../store/auth.ts';
+import { notify } from '../store/ui.ts';
 import { usePeriodStats, useTotalCost } from '../hooks.ts';
 import { ChartCard, UTILITY_COLOR, axisStyle, tooltipStyle } from '../components/Chart.tsx';
 import { DataTable } from '../components/DataTable.tsx';
@@ -12,7 +16,7 @@ import { fiscalMonths, formatDate, localToday, monthShortName, parseISO } from '
 import { UTILITIES, UTILITY_INFO } from '../lib/types.ts';
 import type { Utility } from '../lib/types.ts';
 import { fmtAuto, fmtMoney, fmtNumber, fmtPercent, fmtSigned, NA } from '../lib/format.ts';
-import { FilterX } from 'lucide-react';
+import { Download, FileText, FilterX, RefreshCw } from 'lucide-react';
 
 export default function Monthly() {
   const { fy, settings, totals, metricsMap, meters, meterDays, budgets } = useData();
@@ -61,6 +65,7 @@ export default function Monthly() {
         <Field label="Month"><select className="input" value={month.key} onChange={(e) => setKey(e.target.value)}>{months.map((m) => <option key={m.key} value={m.key}>{m.label}{m.start > today ? ' (future)' : ''}</option>)}</select></Field>
         <button className="btn" onClick={() => { setKey(def.key); setArea('energy'); }}><FilterX size={16} />Clear filters</button>
       </div>
+      <SavedReports month={{ ...month, fy }} future={month.start > today} />
       {UTILITIES.every((u) => cur.byUtility[u].total === null) && <Note kind="info"><strong>No consumption data for {month.label}.</strong></Note>}
       <div className="kpis">
         {UTILITIES.map((u) => {
@@ -94,5 +99,45 @@ export default function Monthly() {
           { key: 'r', header: 'Rooms', num: true, value: (r) => r.rooms, render: (r) => fmtNumber(r.rooms) }, { key: 'g', header: 'Guests', num: true, value: (r) => r.guests, render: (r) => fmtNumber(r.guests) }]} />
       </div>
     </>
+  );
+}
+
+/** PDFs saved in the website: made automatically for each finished month, or by an administrator. */
+function SavedReports({ month, future }: { month: { key: string; label: string; start: string; end: string; month: number; fy: number }; future: boolean }) {
+  const { reports, available, loaded, creating, list, create, open, markSeen } = useReports();
+  const admin = useIsAdmin();
+  useEffect(() => { if (!loaded) void list(); }, [loaded, list]);
+  if (!loaded) return null;
+  if (!available) {
+    return admin ? <Note kind="info"><strong>Saved monthly PDFs are not set up yet.</strong> Run migration 0010_monthly_reports.sql in the Supabase SQL Editor to keep each month's PDF in the website.</Note> : null;
+  }
+  const exists = reports.some((r) => r.month_key === month.key);
+  const download = async (r: MonthlyReport) => {
+    try { await open(r); if (r.month_key === reports[0]?.month_key) markSeen(); } catch (e) { notify.error('Could not open the report', e instanceof Error ? e.message : String(e)); }
+  };
+  const make = async () => {
+    try { const r = await create(month); notify.success(`${r.label} report saved`, 'Everybody who views reports can now download it.'); }
+    catch (e) { notify.error('Could not save the report', e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="card saved-reports">
+      <div className="card-head">
+        <h3><FileText size={16} /> Saved monthly PDFs</h3>
+        {admin && !future && (
+          <button className="btn sm" disabled={creating !== null} onClick={() => void make()}>
+            <RefreshCw size={14} />{creating === month.key ? 'Saving…' : exists ? `Remake ${month.label}` : `Save ${month.label} now`}
+          </button>)}
+      </div>
+      {reports.length === 0
+        ? <p className="small muted" style={{ margin: 0 }}>No saved reports yet. Last month's PDF is saved automatically the first time an administrator opens the website in a new month.</p>
+        : (
+          <ul className="report-list">
+            {reports.slice(0, 12).map((r) => (
+              <li key={r.month_key}>
+                <span><strong>{r.label}</strong><small>{r.size_bytes ? `${Math.max(1, Math.round(r.size_bytes / 1024))} KB · ` : ''}saved {formatDate(r.created_at.slice(0, 10))}</small></span>
+                <button className="btn sm" onClick={() => void download(r)}><Download size={14} />PDF</button>
+              </li>))}
+          </ul>)}
+    </div>
   );
 }

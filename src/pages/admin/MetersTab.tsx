@@ -11,6 +11,9 @@ import type { Meter, Utility } from '../../lib/types.ts';
 import { notify } from '../../store/ui.ts';
 import { parseReading } from '../../lib/validate.ts';
 import { fmtNumber } from '../../lib/format.ts';
+import { QrCode } from 'lucide-react';
+import { stickerSheetHtml } from '../../lib/qrStickers.ts';
+import { ENV } from '../../config/env.ts';
 const BASE_UNIT_OF: Record<Utility, string> = { energy: 'kWh', water: 'm³', gas: 'L', chilled: 'm³' };
 
 
@@ -18,10 +21,11 @@ export default function MetersTab() {
   const { meters, reloadReference } = useData();
   const [adding, setAdding] = useState(false);
   const [edit, setEdit] = useState<Meter | null>(null);
+  const [qr, setQr] = useState(false);
 
   return (
     <div className="card">
-      <div className="card-head"><h3>Meters ({meters.length})</h3><button className="btn primary" onClick={() => setAdding(true)}>Add meter</button></div>
+      <div className="card-head"><h3>Meters ({meters.length})</h3><div className="actions"><button className="btn" onClick={() => setQr(true)}><QrCode size={15} />QR stickers</button><button className="btn primary" onClick={() => setAdding(true)}>Add meter</button></div></div>
       <Note kind="info"><strong>Counted in total</strong> decides whether a meter is added into the utility’s daily total (as in the workbook). Turn it off for sub-meters that would count the same consumption twice – check main vs. sub-meters (for example the LPG main meter) with the engineering team.</Note>
       <DataTable rows={meters} rowKey={(m) => m.id} columns={[
         { key: 'c', header: 'Code', value: (m) => m.code }, { key: 'u', header: 'Utility', value: (m) => UTILITY_INFO[m.utility].label }, { key: 'a', header: 'Area', value: (m) => m.area }, { key: 'cat', header: 'Section', value: (m) => (m.utility === 'water' ? CATEGORY_LABEL[m.category ?? 'standard'] : '') },
@@ -29,6 +33,7 @@ export default function MetersTab() {
         { key: 'i', header: 'Counted in total', value: (m) => (m.include_in_total ? 'Yes' : 'No') }, { key: 'r', header: 'Rollover at', num: true, value: (m) => m.rollover_at, render: (m) => fmtNumber(m.rollover_at) },
         { key: 'ac', header: 'Active', value: (m) => (m.active ? 'Yes' : 'No') }, { key: 'x', header: '', value: () => '', render: (m) => <button className="btn sm" onClick={() => setEdit(m)}>Edit</button> },
       ]} />
+      {qr && <QrStickers meters={meters.filter((m) => m.active)} onClose={() => setQr(false)} />}
       {(adding || edit) && <MeterForm meter={edit} onClose={() => { setAdding(false); setEdit(null); }} onSaved={() => { setAdding(false); setEdit(null); void reloadReference(); }} />}
     </div>
   );
@@ -66,6 +71,36 @@ function MeterForm({ meter, onClose, onSaved }: { meter: Meter | null; onClose: 
       </div>
       <label style={{ display: 'block', marginTop: 10 }}><input type="checkbox" checked={f.include_in_total} onChange={(e) => setF({ ...f, include_in_total: e.target.checked })} /> Counted in the utility total</label>
       <label style={{ display: 'block' }}><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Active</label>
+    </Modal>
+  );
+}
+
+/** Choose which meters get a QR sticker, then open a printable A4 sheet. */
+function QrStickers({ meters, onClose }: { meters: Meter[]; onClose: () => void }) {
+  const [utility, setUtility] = useState<Utility | ''>('');
+  const [area, setArea] = useState('');
+  const [busy, setBusy] = useState(false);
+  const byUtility = meters.filter((m) => !utility || m.utility === utility);
+  const areas = [...new Set(byUtility.map((m) => m.area))].sort();
+  const chosen = byUtility.filter((m) => !area || m.area === area);
+  const open = async () => {
+    // open the window first (in the click), so the browser does not block it as a pop-up
+    const w = window.open('', '_blank');
+    if (!w) { notify.error('Pop-up blocked', 'Allow pop-ups for this site to print the stickers.'); return; }
+    setBusy(true);
+    try {
+      w.document.open(); w.document.write(await stickerSheetHtml(chosen, ENV.propertyName)); w.document.close();
+    } catch (e) { w.close(); notify.error('Stickers not created', e instanceof Error ? e.message : String(e)); }
+    setBusy(false);
+  };
+  return (
+    <Modal title="Meter QR stickers" onClose={onClose} actions={<><button className="btn" onClick={onClose}>Close</button><button className="btn primary" disabled={busy || chosen.length === 0} onClick={() => void open()}><QrCode size={15} />{busy ? 'Preparing…' : `Open ${chosen.length} sticker${chosen.length === 1 ? '' : 's'}`}</button></>}>
+      <p className="muted" style={{ marginTop: 0 }}>Print the stickers and put each one next to its meter. Scanning one with the phone camera opens Daily Entry on that meter with today’s date, so the recorder only types the closing reading. The recorder must be signed in on the phone.</p>
+      <div className="form-grid">
+        <Field label="Utility"><select className="input" value={utility} onChange={(e) => { setUtility(e.target.value as Utility | ''); setArea(''); }}><option value="">All utilities</option>{UTILITIES.map((u) => <option key={u} value={u}>{UTILITY_INFO[u].label}</option>)}</select></Field>
+        <Field label="Area"><select className="input" value={area} onChange={(e) => setArea(e.target.value)}><option value="">All areas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select></Field>
+      </div>
+      <p className="small muted">The code links to this website’s address. Print the stickers from the published website (not a test copy), so they open the right site.</p>
     </Modal>
   );
 }

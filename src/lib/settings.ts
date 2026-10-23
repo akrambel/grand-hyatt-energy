@@ -2,6 +2,7 @@ import { DEFAULT_ANOMALY } from './anomaly.ts';
 import type { AnomalyOptions } from './anomaly.ts';
 import { DEFAULT_UNITS, parseUnits } from './units.ts';
 import type { UnitSettings } from './units.ts';
+import type { Utility } from './types.ts';
 
 export interface ThresholdSetting { enabled: boolean; min: number | null; max: number | null }
 
@@ -18,6 +19,11 @@ export interface Settings {
   units: UnitSettings;
   /** Unit shown on the guest-room BTU meters (stored value): 'm³', 'L' or 'kWh'. */
   roomMeterUnit: string;
+  /**
+   * Energy performance indicator targets (ISO 50001 EnPI): consumption per occupied room-night, in the
+   * base units kWh, m³ (water, chilled water) and L (gas). null = no target set.
+   */
+  enpiTargets: Record<Utility, number | null>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lpg: { capacityLitres: [4000, 4000, 4000] },
   units: DEFAULT_UNITS,
   roomMeterUnit: 'm³',
+  enpiTargets: { energy: null, water: null, gas: null, chilled: null },
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -78,6 +85,11 @@ export function parseSettings(rows: Array<{ key: string; value: unknown }>): Set
     lpg: { capacityLitres: caps },
     units: parseUnits(m.get('units')),
     roomMeterUnit: ['m³', 'L', 'kWh'].includes(String(m.get('room_meter_unit'))) ? String(m.get('room_meter_unit')) : d.roomMeterUnit,
+    enpiTargets: (() => {
+      const t = m.get('enpi_targets');
+      const pos = (v: unknown) => { const n = numOrNull(v, null); return n !== null && n > 0 ? n : null; };
+      return isObj(t) ? { energy: pos(t.energy), water: pos(t.water), gas: pos(t.gas), chilled: pos(t.chilled) } : { ...d.enpiTargets };
+    })(),
   };
 }
 

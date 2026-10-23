@@ -6,7 +6,8 @@ import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../store/auth.ts';
 import { brandUrl } from '../config/env.ts';
 import { UserAvatar } from '../components/Layout.tsx';
-import { BUDGET_FIELD, guestForecast } from '../lib/kpi.ts';
+import { BUDGET_FIELD, enpiTarget, guestForecast } from '../lib/kpi.ts';
+import { BASE_UNITS, unitFactor } from '../lib/units.ts';
 import type { BudgetedUtility } from '../lib/kpi.ts';
 import { fiscalMonths } from '../lib/dates.ts';
 import { useData } from '../store/data.ts';
@@ -123,6 +124,7 @@ export default function Overview() {
   const [picked, setPicked] = useState<Utility | null>(null);
   const sel: Utility = picked ?? finding?.u ?? 'energy';
   const selStats = byUtility[sel];
+  const porTarget = enpiTarget(settings.enpiTargets, sel, sel === 'energy' ? 1 : unitFactor(BASE_UNITS[sel], settings.units[sel]));
   const unitOf = (u: Utility) => UTILITY_INFO[u].unit;
 
   // The chart: daily bars from the period start to the last day with readings; monthly when the span is long.
@@ -351,7 +353,7 @@ export default function Overview() {
           <dl className="kv">
             <div className="lead"><dt>Total</dt><dd className={clsx(selStats.total === null && 'na')}>{selStats.total === null ? '—' : <>{fmtAuto(selStats.total)}<small>{unitOf(sel)}</small></>}</dd></div>
             <div><dt>Average per day</dt><dd className={clsx(selStats.avgDaily === null && 'na')}>{selStats.avgDaily === null ? '—' : <>{fmtAuto(selStats.avgDaily)}<small>{unitOf(sel)}</small></>}</dd></div>
-            <div><dt>Per occupied room</dt><dd className={clsx(selStats.perRoom === null && 'na')}>{selStats.perRoom === null ? '—' : <>{fmtNumber(selStats.perRoom, 2)}<small>{unitOf(sel)}</small></>}</dd></div>
+            <div><dt><Link className="link-btn" to="/enpi">Per occupied room</Link></dt><dd className={clsx(selStats.perRoom === null && 'na')}>{selStats.perRoom === null ? '—' : <>{fmtNumber(selStats.perRoom, 2)}<small>{unitOf(sel)}</small>{porTarget !== null && <small className={selStats.perRoom > porTarget * 1.02 ? 'over' : 'under'}> · target {fmtNumber(porTarget, 2)}</small>}</>}</dd></div>
             <div><dt>Per guest</dt><dd className={clsx(selStats.perGuest === null && 'na')}>{selStats.perGuest === null ? '—' : <>{fmtNumber(selStats.perGuest, 2)}<small>{unitOf(sel)}</small></>}</dd></div>
             <div><dt>Cost</dt><dd className={clsx(selStats.cost.cost === null && 'na')}>{selStats.cost.cost === null ? 'No tariff' : fmtMoney(selStats.cost.cost, selStats.cost.currency ?? 'SAR')}</dd></div>
             <div><dt>Days with readings</dt><dd>{selStats.coverage.daysWithData}<small>of {selStats.coverage.daysElapsed}</small></dd></div>
