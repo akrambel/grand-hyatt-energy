@@ -5,7 +5,7 @@ import { create } from 'zustand';
 import { supabase, fetchAll, friendlyError } from '../lib/supabase.ts';
 import { buildMeterDays, dailyTotals } from '../lib/calc.ts';
 import type { UtilityDayTotals } from '../lib/calc.ts';
-import { addDays, fiscalRange, fiscalYearOf, localToday } from '../lib/dates.ts';
+import { addDays, eachDay, fiscalMonths, fiscalRange, fiscalYearOf, localToday } from '../lib/dates.ts';
 import { DEFAULT_SETTINGS, parseSettings } from '../lib/settings.ts';
 import type { Settings } from '../lib/settings.ts';
 import { UTILITY_INFO } from '../lib/types.ts';
@@ -13,6 +13,8 @@ import type { BudgetRow, DailyMetric, Meter, MeterCategory, MeterDay, Reading, T
 import { BASE_UNITS, UNIT_UTILITIES, normalizeUnit, priceToDisplay, toDisplay, toNative, unitFactor } from '../lib/units.ts';
 import type { UnitUtility } from '../lib/units.ts';
 import { isConnectionError, pendingReading, useOutbox } from './outbox.ts';
+import { HOTEL_ROOMS } from '../lib/rooms.ts';
+import { SAMPLE_BLOCKED, isSampleMode, rnd, sampleBudgets, sampleMetric, sampleReadings, setSampleMode } from '../lib/sampleData.ts';
 
 export interface LpgLevel { id?: string; tank: number; level_fraction: number; recorded_at: string }
 export interface AlertRow {
@@ -123,7 +125,8 @@ const toMetric = (r: Record<string, unknown>): DailyMetric => ({
 let recomputeTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useData = create<DataState>((set, get) => ({
-  fy: fiscalYearOf(localToday(DEFAULT_SETTINGS.timezone)),
+  // the sample preview opens on the last full reporting year (see showSampleData)
+  fy: fiscalYearOf(localToday(DEFAULT_SETTINGS.timezone)) - (isSampleMode() ? 1 : 0),
   status: 'idle',
   error: null,
   loadedAt: null,
@@ -141,14 +144,18 @@ export const useData = create<DataState>((set, get) => ({
       if (sErr) throw new Error(sErr.message);
       const settings = parseSettings((settingRows ?? []) as Array<{ key: string; value: unknown }>);
       const range = fiscalRange(fy, settings.fiscalStartMonth);
-      const from = addDays(range.start, -1); // previous day = opening of the first day
+      const sample = isSampleMode();
+      const today = localToday(settings.timezone);
+      // previous day = opening of the first day; the sample preview only reads the last 60 days (typical use of each meter)
+      const from = sample ? addDays(today, -60) : addDays(range.start, -1);
+      const to = sample ? today : range.end;
 
       const [meterRows, readingRows, metricRows, tariffRows, budgetRows, peopleRows] = await Promise.all([
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('meters').select('*').order('utility').order('sort_order').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('readings')
           .select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at')
-          .gte('reading_date', from).lte('reading_date', range.end).order('reading_date').order('meter_id').range(a, b)),
-        fetchAll<Record<string, unknown>>((a, b) => supabase.from('daily_metrics').select('*')
+          .gte('reading_date', from).lte('reading_date', to).order('reading_date').order('meter_id').range(a, b)),
+        sample ? Promise.resolve([] as Array<Record<string, unknown>>) : fetchAll<Record<string, unknown>>((a, b) => supabase.from('daily_metrics').select('*')
           .gte('metric_date', range.start).lte('metric_date', range.end).order('metric_date').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('tariffs').select('*').order('effective_from').range(a, b)),
         fetchAll<Record<string, unknown>>((a, b) => supabase.from('budgets').select('*').range(a, b)),
@@ -157,20 +164,33 @@ export const useData = create<DataState>((set, get) => ({
       applyDisplayUnits(settings);
       const meters = meterRows.map(toMeter).map((m) => withDisplayUnit(m, settings));
       const factorById = new Map(meters.map((m) => [m.id, m.unitFactor ?? 1]));
-      const readings = readingRows.map(toReading).map((r) => toDisplayReading(r, (id) => factorById.get(id) ?? 1));
+      let readings = readingRows.map(toReading).map((r) => toDisplayReading(r, (id) => factorById.get(id) ?? 1));
+      let sampleBudgetRows: BudgetRow[] | null = null;
+      let sampleMetrics: DailyMetric[] | null = null;
+      if (sample) {
+        sampleCtx = makeSampleContext(meters, readings, settings);
+        const end = range.end < today ? range.end : today;
+        readings = sampleReadings(meters, sampleCtx.baseOf, range.start, end, sampleCtx.metricOf);
+        sampleMetrics = end >= range.start ? eachDay(range.start, end).map(sampleCtx.metricOf) : [];
+        sampleBudgetRows = sampleBudgets(fy, fiscalMonths(fy, settings.fiscalStartMonth), meters, sampleCtx.baseOf, sampleCtx.metricOf);
+      } else sampleCtx = null;
       // readings typed offline and not sent yet stay visible (and count for the next opening)
-      for (const it of useOutbox.getState().items) {
+      for (const it of sample ? [] : useOutbox.getState().items) {
         const f = factorById.get(it.meter_id) ?? 1;
         const p = pendingReading(it, (v) => (v === null ? null : toDisplay(v, f) as number));
         const i = readings.findIndex((r) => r.meter_id === p.meter_id && r.reading_date === p.reading_date);
         if (i >= 0) readings[i] = { ...readings[i], ...p }; else readings.push(p);
       }
-      const metrics = metricRows.map(toMetric);
+      const metrics = sampleMetrics ?? metricRows.map(toMetric);
+      const tariffs: Tariff[] = tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string }));
+      if (sample) for (const [u, price] of Object.entries(SAMPLE_TARIFFS) as Array<[Tariff['utility'], number]>) {
+        if (!tariffs.some((t) => t.utility === u && t.effective_from <= range.start)) tariffs.unshift({ utility: u, price_per_unit: displayPrice(u, price, settings), currency: 'SAR', effective_from: '2020-01-01' });
+      }
       set({
         settings, meters, readings, metrics,
         people: new Map(peopleRows.map((p) => [p.id as string, (p.display_name as string) || '—'])),
-        tariffs: tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string })),
-        budgets: budgetRows.map((b) => ({
+        tariffs,
+        budgets: sampleBudgetRows ?? budgetRows.map((b) => ({
           fiscal_year: Number(b.fiscal_year), month: Number(b.month), kind: b.kind as BudgetRow['kind'],
           rooms_sold: num(b.rooms_sold), occupancy_rate: num(b.occupancy_rate), guests: num(b.guests),
           gas: toDisplay(num(b.gas), baseFactor('gas', settings)), electricity: num(b.electricity), water: toDisplay(num(b.water), baseFactor('water', settings)),
@@ -229,11 +249,13 @@ export const useData = create<DataState>((set, get) => ({
     };
     const channel = supabase.channel('ghrs-data')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'readings' }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        if (isSampleMode()) return;
         if (p.eventType === 'DELETE') { if (p.old?.id) get().removeReadingLocal(p.old.id as string); return; }
         const r = toDisplayReading(toReading(p.new), (id) => get().meterById.get(id)?.unitFactor ?? 1);
         if (inFy(r.reading_date)) get().upsertReadingLocal(r);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_metrics' }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        if (isSampleMode()) return;
         if (p.eventType === 'DELETE') { if (p.old?.metric_date) get().removeMetricLocal(p.old.metric_date as string); return; }
         get().upsertMetricLocal(toMetric(p.new));
       })
@@ -263,6 +285,7 @@ export async function saveReading(input: SaveReadingInput): Promise<Reading> {
   const factor = useData.getState().meterById.get(input.meter_id)?.unitFactor ?? 1;
   const nativeOpening = input.opening === null ? null : toNative(input.opening, factor);
   const nativeClosing = toNative(input.closing, factor);
+  if (isSampleMode()) throw new Error(SAMPLE_BLOCKED);
   const queueOffline = (): Reading => {
     useOutbox.getState().add({ meter_id: input.meter_id, reading_date: input.reading_date, opening: nativeOpening, closing: nativeClosing, note: input.note ?? null });
     const local: Reading = { meter_id: input.meter_id, reading_date: input.reading_date, opening: input.opening, closing: input.closing, note: input.note ?? null, source: 'offline', updated_at: new Date().toISOString() };
@@ -291,12 +314,14 @@ export async function saveReading(input: SaveReadingInput): Promise<Reading> {
 }
 
 export async function deleteReading(id: string): Promise<void> {
+  if (isSampleMode()) throw new Error(SAMPLE_BLOCKED);
   const { error } = await supabase.from('readings').delete().eq('id', id);
   if (error) throw new Error(friendlyError(error));
   useData.getState().removeReadingLocal(id);
 }
 
 export async function saveMetric(m: Partial<DailyMetric> & { metric_date: string }): Promise<void> {
+  if (isSampleMode()) throw new Error(SAMPLE_BLOCKED);
   const row = {
     metric_date: m.metric_date, avg_temp_c: m.avg_temp_c ?? null, occupancy_rate: m.occupancy_rate ?? null,
     occupied_rooms: m.occupied_rooms ?? null, guests: m.guests ?? null,
@@ -328,6 +353,13 @@ export async function loadRangeData(start: string, end: string): Promise<{ total
   const st = useData.getState();
   const range = fiscalRange(st.fy, st.settings.fiscalStartMonth);
   if (start >= range.start && end <= range.end) return { totals: st.totals, metricsMap: st.metricsMap, metrics: st.metrics };
+  if (sampleCtx) {
+    const today = localToday(st.settings.timezone);
+    const last = end < today ? end : today;
+    const readings = sampleReadings(st.meters, sampleCtx.baseOf, start, last, sampleCtx.metricOf);
+    const metrics = last >= start ? eachDay(start, last).map(sampleCtx.metricOf) : [];
+    return { totals: dailyTotals(st.meters, buildMeterDays(st.meters, readings)), metricsMap: new Map(metrics.map((m) => [m.metric_date, m])), metrics };
+  }
   const [readingRows, metricRows] = await Promise.all([
     fetchAll<Record<string, unknown>>((a, b) => supabase.from('readings').select('id, meter_id, reading_date, opening, closing, note, source, entered_by, updated_at')
       .gte('reading_date', addDays(start, -1)).lte('reading_date', end).order('reading_date').order('meter_id').range(a, b)),
@@ -337,4 +369,52 @@ export async function loadRangeData(start: string, end: string): Promise<{ total
   const metrics = metricRows.map(toMetric);
   const meterDays = buildMeterDays(st.meters, readings);
   return { totals: dailyTotals(st.meters, meterDays), metricsMap: new Map(metrics.map((m) => [m.metric_date, m])), metrics };
+}
+
+// ------------------------------------------------------------ sample preview --
+
+/** Prices used in the sample preview when no tariff is set (base units: SAR per kWh, m³, L). */
+const SAMPLE_TARIFFS: Partial<Record<Tariff['utility'], number>> = { energy: 0.32, water: 9.1, gas: 1.05 };
+
+interface SampleContext { baseOf: (m: Meter) => number; metricOf: (date: string) => DailyMetric }
+let sampleCtx: SampleContext | null = null;
+
+/** The sample preview of the loaded data, or null when the real data is shown (used by the guest-room page). */
+export const getSampleContext = (): SampleContext | null => sampleCtx;
+
+/**
+ * Each meter's typical day: the median of its real readings of the last 60 days when it has some,
+ * otherwise a plausible value for its utility (display units), so the sample looks like this hotel.
+ */
+function makeSampleContext(meters: Meter[], recent: Reading[], settings: Settings): SampleContext {
+  const days = buildMeterDays(meters, recent);
+  const used = new Map<string, number[]>();
+  for (const d of days.values()) if (d.status === 'ok' && d.consumption !== null && d.consumption > 0) {
+    const list = used.get(d.meter_id) ?? []; list.push(d.consumption); used.set(d.meter_id, list);
+  }
+  const typical = new Map<string, number>();
+  for (const [id, list] of used) if (list.length >= 3) { list.sort((a, b) => a - b); typical.set(id, list[Math.floor(list.length / 2)]); }
+  const fallback: Record<Meter['utility'], number> = {
+    energy: 120, water: 6 * baseFactor('water', settings), gas: 60 * baseFactor('gas', settings), chilled: 150 * baseFactor('chilled', settings),
+  };
+  const metricCache = new Map<string, DailyMetric>();
+  return {
+    baseOf: (m) => typical.get(m.id) ?? fallback[m.utility] * (0.4 + 1.2 * rnd(`base|${m.id}`)),
+    metricOf: (date) => {
+      let v = metricCache.get(date);
+      if (!v) { v = sampleMetric(date, HOTEL_ROOMS.length); metricCache.set(date, v); }
+      return v;
+    },
+  };
+}
+
+/**
+ * Turns the sample preview on (shows the last complete reporting year, so every chart is full) or off
+ * (back to the real data of the current year). Only this browser is affected.
+ */
+export async function showSampleData(on: boolean): Promise<void> {
+  setSampleMode(on);
+  const st = useData.getState();
+  const thisFy = fiscalYearOf(localToday(st.settings.timezone), st.settings.fiscalStartMonth);
+  await st.load(on ? thisFy - 1 : thisFy);
 }

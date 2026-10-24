@@ -24,7 +24,8 @@ export function usePeriod(defaultMode: PeriodMode = 'fy') {
   const months = useMemo(() => fiscalMonths(fy, settings.fiscalStartMonth), [fy, settings.fiscalStartMonth]);
   const range = useMemo(() => fiscalRange(fy, settings.fiscalStartMonth), [fy, settings.fiscalStartMonth]);
   const today = localToday(settings.timezone);
-  const currentMonth = months.find((m) => today >= m.start && today <= m.end)?.key ?? months[0].key;
+  // a past reporting year opens on its last month, a future one on its first
+  const currentMonth = months.find((m) => today >= m.start && today <= m.end)?.key ?? (today > months[months.length - 1].end ? months[months.length - 1].key : months[0].key);
 
   // A link such as /#/energy?period=mtd (used by the global search) opens the page with that period.
   const [sp] = useSearchParams();
@@ -52,17 +53,24 @@ export function usePeriod(defaultMode: PeriodMode = 'fy') {
       const start = weekStartOf(today);
       return { start: start < range.start ? range.start : start, end: today, label: `Week to date (${formatDate(start)} – ${formatDate(today)})`, mode, monthKey: null };
     }
+    if ((mode === 'mtd' || mode === 'wtd') && !todayInYear) {
+      // month/week to date of another year: show that year's matching month instead of the whole year
+      const m = months.find((x) => x.key === currentMonth) ?? months[0];
+      return { start: m.start, end: m.end, label: m.label, mode: 'month', monthKey: m.key };
+    }
     if (mode === 'range' && from && to && from <= to) return { start: from, end: to, label: `${formatDate(from)} – ${formatDate(to)}`, mode, monthKey: null };
     return { start: range.start, end: range.end, label: `Reporting year ${fy}-${String(fy + 1).slice(2)} (${formatDate(range.start)} – ${formatDate(range.end)})`, mode: 'fy', monthKey: null };
   }, [mode, mk, from, to, months, range, fy, today, todayInYear]);
 
+  // MTD/WTD outside the current year is shown as the month it stands for
+  const shown: PeriodMode = (mode === 'mtd' || mode === 'wtd') && !todayInYear ? 'month' : mode;
   const clear = () => { setMode(defaultMode); setMonthKey(null); setFrom(''); setTo(''); };
   const invalidRange = mode === 'range' && from !== '' && to !== '' && from > to;
 
   const ui = (
     <>
       <Field label="Period">
-        <select className="input" value={mode} onChange={(e) => setMode(e.target.value as PeriodMode)}>
+        <select className="input" value={shown} onChange={(e) => setMode(e.target.value as PeriodMode)}>
           <option value="fy">Whole reporting year</option>
           <option value="mtd" disabled={!todayInYear}>MTD – Month to date</option>
           <option value="wtd" disabled={!todayInYear}>WTD – Week to date</option>
@@ -70,7 +78,7 @@ export function usePeriod(defaultMode: PeriodMode = 'fy') {
           <option value="range">Custom date range</option>
         </select>
       </Field>
-      {mode === 'month' && (
+      {shown === 'month' && (
         <Field label="Month">
           <select className="input" value={mk} onChange={(e) => setMonthKey(e.target.value)}>
             {months.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}

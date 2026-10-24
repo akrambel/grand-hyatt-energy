@@ -524,3 +524,9 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
 .qr-meter > div { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .qr-meter strong { overflow-wrap: anywhere; }
 .qr-meter span { font-size: 13px; color: var(--muted); }
+
+/* Sample data preview */
+.sample-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 10px 14px; border-radius: 14px; border: 1px dashed var(--warning-edge); background: var(--pill-warning-bg); color: var(--warning-ink); font-size: 14px; }
+.sample-banner span { min-width: 0; flex: 1 1 260px; }
+.sample-points { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; }
+.sample-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }

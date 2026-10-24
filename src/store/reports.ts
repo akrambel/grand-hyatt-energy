@@ -8,6 +8,7 @@ import type { ReportMonth } from '../lib/monthlyReport.ts';
 import { localToday } from '../lib/dates.ts';
 import { useData } from './data.ts';
 import { useAuth } from './auth.ts';
+import { SAMPLE_BLOCKED, isSampleMode } from '../lib/sampleData.ts';
 
 const BUCKET = 'reports';
 const SEEN_KEY = 'ghrs-reports-seen-v1';
@@ -48,6 +49,7 @@ export const useReports = create<ReportsState>((set, get) => ({
   },
 
   create: async (month) => {
+    if (isSampleMode()) throw new Error(SAMPLE_BLOCKED);
     set({ creating: month.key });
     try {
       const st = useData.getState();
@@ -69,7 +71,7 @@ export const useReports = create<ReportsState>((set, get) => ({
   },
 
   ensureLastMonth: async () => {
-    if (ensured) return null;
+    if (ensured || isSampleMode()) return null; // never save a report made from sample figures
     ensured = true;
     if (!get().loaded) await get().list();
     if (!get().available) return null;

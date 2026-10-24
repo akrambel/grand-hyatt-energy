@@ -3,7 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Camera, FileText, Wifi, WifiOff, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
 import { useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
-import { useData, sendOfflineReadings } from '../store/data.ts';
+import { useData, sendOfflineReadings, showSampleData } from '../store/data.ts';
+import { isSampleMode } from '../lib/sampleData.ts';
 import { useOutbox } from '../store/outbox.ts';
 import { useReports } from '../store/reports.ts';
 import { toDisplay } from '../lib/units.ts';
@@ -317,6 +318,8 @@ export function Layout() {
   const FIRST_FY = 2026;
   const thisFy = fiscalYearOf(localToday(settings.timezone), settings.fiscalStartMonth);
   const fyOptions = Array.from({ length: Math.max(1, thisFy - FIRST_FY + 1) }, (_, i) => thisFy - i);
+  const sample = isSampleMode();
+  if (sample && !fyOptions.includes(thisFy - 1)) fyOptions.push(thisFy - 1); // the sample preview fills the last full year
   if (!fyOptions.includes(fy)) fyOptions.push(fy);
 
   const current = NAV.find((n) => (n.path === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.path)));
@@ -370,6 +373,11 @@ export function Layout() {
         <div className="sheet">
           <main className="page" id="content" ref={pageRef}>
             {status === 'error' && <Note kind="bad"><strong>Data could not be loaded.</strong> {error} <button className="btn sm" onClick={() => void load()}>Retry</button></Note>}
+            {sample && status !== 'loading' && (
+              <div className="sample-banner" role="status">
+                <span><strong>Sample data.</strong> These figures are made up to preview the dashboard; nothing is saved and only you see them.</span>
+                <button className="btn sm" onClick={() => void showSampleData(false).then(() => notify.success('Sample data removed', 'The dashboard shows the real data again.'))}>Remove sample data</button>
+              </div>)}
             {status === 'loading' && <Loading />}
             {status !== 'loading' && <Outlet />}
           </main>

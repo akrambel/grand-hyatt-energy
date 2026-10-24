@@ -10,11 +10,12 @@ import SettingsTab from './admin/SettingsTab.tsx';
 import DevicesTab from './admin/DevicesTab.tsx';
 import AuditTab from './admin/AuditTab.tsx';
 import ReadingsTab from './admin/ReadingsTab.tsx';
+import SampleTab from './admin/SampleTab.tsx';
 
 const TABS = [
   { id: 'users', label: 'Users', C: UsersTab }, { id: 'readings', label: 'Readings', C: ReadingsTab }, { id: 'import', label: 'Import', C: ImportTab }, { id: 'export', label: 'Export', C: ExportTab },
   { id: 'meters', label: 'Meters', C: MetersTab }, { id: 'tariffs', label: 'Tariffs', C: TariffsTab }, { id: 'settings', label: 'Settings & thresholds', C: SettingsTab },
-  { id: 'devices', label: 'Devices', C: DevicesTab }, { id: 'audit', label: 'Audit & maintenance', C: AuditTab },
+  { id: 'devices', label: 'Devices', C: DevicesTab }, { id: 'audit', label: 'Audit & maintenance', C: AuditTab }, { id: 'sample', label: 'Sample data', C: SampleTab },
 ] as const;
 
 export default function Admin() {

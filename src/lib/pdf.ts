@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { logoUrl } from '../config/env.ts';
 import { downloadBlob, NA } from './format.ts';
 import type { CapturedChart } from './chartImage.ts';
+import { isSampleMode } from './sampleData.ts';
 
 export interface PdfKpi { label: string; value: string }
 export interface PdfTable { title: string; headers: string[]; rows: Array<Array<string | number | null>>; numericCols?: number[] }
@@ -49,7 +50,9 @@ async function loadLogo(): Promise<{ data: string; w: number; h: number } | null
   } catch { return null; }
 }
 
-export async function buildPdf(r: PdfReport): Promise<Blob> {
+export async function buildPdf(report: PdfReport): Promise<Blob> {
+  // made-up figures of the sample preview are labelled on every page
+  const r = isSampleMode() ? { ...report, title: `SAMPLE DATA – ${report.title}` } : report;
   const doc = new jsPDF({ orientation: r.landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();

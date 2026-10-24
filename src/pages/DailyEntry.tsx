@@ -9,6 +9,7 @@ import { validateEntry } from '../lib/validate.ts';
 import type { EntryResult } from '../lib/validate.ts';
 import { addDays, formatDate, localToday } from '../lib/dates.ts';
 import { scrollToTop } from '../lib/motion.ts';
+import { isSampleMode } from '../lib/sampleData.ts';
 import { UTILITIES, UTILITY_INFO } from '../lib/types.ts';
 import type { Meter, Utility } from '../lib/types.ts';
 import { fmtAuto, fmtNumber } from '../lib/format.ts';
@@ -116,19 +117,21 @@ export default function DailyEntry() {
   const [params] = useSearchParams();
   const [mode, setMode] = useState<'single' | 'grid'>('single');
   const qr = !!params.get('meter');
+  const sample = isSampleMode();
   useEffect(() => { if (qr) setMode('single'); }, [qr]);
   return (
     <>
       {qr
         ? <PageHead title="Meter reading" />
         : <PageHead title="Daily Consumption Entry" subtitle="Enter the closing reading. The opening is always the last closing reading; it is asked for only once, for a meter’s first reading." />}
+      {sample && <Note kind="warn"><strong>Entry is switched off while sample data is shown.</strong> Remove the sample data in Administration › Sample data (or with the button above) to enter real readings.</Note>}
       {!canEnter && <Note kind="warn"><strong>Read-only access.</strong> Your account is not authorised to enter data. An administrator can enable this in Administration → Users.</Note>}
       {!qr && (
         <div className="tabs" role="tablist">
           <button className={clsx('tab', mode === 'single' && 'active')} onClick={() => setMode('single')}>Single meter</button>
           <button className={clsx('tab', mode === 'grid' && 'active')} onClick={() => setMode('grid')}>Whole utility (all meters)</button>
         </div>)}
-      {mode === 'single' ? <SingleEntry disabled={!canEnter} /> : <GridEntry disabled={!canEnter} />}
+      {mode === 'single' ? <SingleEntry disabled={!canEnter || sample} /> : <GridEntry disabled={!canEnter || sample} />}
     </>
   );
 }

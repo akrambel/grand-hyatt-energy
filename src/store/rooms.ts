@@ -6,6 +6,10 @@ import { ROOM_STATUSES } from '../lib/rooms.ts';
 import type { RoomReading, RoomStatus } from '../lib/rooms.ts';
 import { toDisplay, toNative, unitFactor } from '../lib/units.ts';
 import type { Settings } from '../lib/settings.ts';
+import { getSampleContext, useData } from './data.ts';
+import { HOTEL_ROOMS } from '../lib/rooms.ts';
+import { SAMPLE_BLOCKED, isSampleMode, sampleRoomReadings } from '../lib/sampleData.ts';
+import { localToday } from '../lib/dates.ts';
 
 /** Unit shown for the room meters and the factor from the stored unit (displayValue = stored × factor). */
 export function roomUnitInfo(settings: Settings): { unit: string; factor: number } {
@@ -21,6 +25,11 @@ export async function fetchRooms(): Promise<string[]> {
 
 /** Readings from the day BEFORE `start` (needed as the opening of the first day) up to `end`. */
 export async function fetchRoomReadings(start: string, end: string, factor: number): Promise<RoomReading[]> {
+  const sample = getSampleContext();
+  if (sample) {
+    const today = localToday(useData.getState().settings.timezone);
+    return sampleRoomReadings(HOTEL_ROOMS, start, end < today ? end : today, factor, sample.metricOf);
+  }
   const rows = await fetchAll<Record<string, unknown>>((a, b) => supabase.from('room_readings')
     .select('room_number, reading_date, opening, closing, status, note')
     .gte('reading_date', addDays(start, -1)).lte('reading_date', end).order('reading_date').order('room_number').range(a, b));
@@ -37,6 +46,7 @@ export interface RoomDayInput { room: string; closing: number | null; status: Ro
 
 /** Saves one day for many rooms. `closing` is typed in the display unit and stored in the meter's own unit. */
 export async function saveRoomDay(date: string, rows: RoomDayInput[], factor: number): Promise<number> {
+  if (isSampleMode()) throw new Error(SAMPLE_BLOCKED);
   const payload = rows.filter((r) => r.closing !== null || r.status !== null).map((r) => ({
     room_number: r.room, reading_date: date, closing: r.closing === null ? null : toNative(r.closing, factor), status: r.status,
   }));
