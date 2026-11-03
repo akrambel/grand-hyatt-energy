@@ -1,8 +1,9 @@
 // KPIs, budget-vs-actual and cost calculations. All functions return `null` (shown as
 // "N/A") when the underlying data is missing – values are never invented.
 
-import { fiscalMonths, DEFAULT_FISCAL_START_MONTH } from './dates.ts';
+import { addDays, daysInMonth, fiscalMonths, parseISO, DEFAULT_FISCAL_START_MONTH } from './dates.ts';
 import type { BudgetRow, DailyMetric, DayTotal, Tariff, Utility } from './types.ts';
+import { fixedMonthly } from './types.ts';
 import { round3 } from './calc.ts';
 import type { UtilityDayTotals } from './calc.ts';
 
@@ -137,27 +138,53 @@ export function tariffFor(tariffs: Tariff[], utility: Utility, date: string): Ta
 }
 
 export interface CostResult {
+  /** variable + fixed */
   cost: number | null;
+  /** consumption × price per unit */
+  variable: number | null;
+  /** share of the fixed monthly charges for the days counted (a whole month = the full charge) */
+  fixed: number;
   days: number;
   /** consumption days that had no tariff in effect (cost for those days is unknown) */
   daysWithoutTariff: number;
   currency: string | null;
 }
 
+/**
+ * Utility cost of a period = consumption × price per unit (each day at the tariff in force)
+ * + the fixed monthly charge (diversified demand × fixed rate), counted day by day so a whole month
+ * gives the full charge and a part of a month its share. The fixed part is counted only up to
+ * `fixedUpTo` (normally today: future days are not billed yet); pass null to leave it out
+ * (used for parts of a utility, such as water sections, which do not carry the fixed charge).
+ */
 export function costInRange(
-  totals: Map<string, DayTotal>, tariffs: Tariff[], utility: Utility, start: string, end: string,
+  totals: Map<string, DayTotal>, tariffs: Tariff[], utility: Utility, start: string, end: string, fixedUpTo: string | null = null,
 ): CostResult {
-  let cost = 0, days = 0, missing = 0;
+  let variable = 0, days = 0, missing = 0;
   let currency: string | null = null;
   for (const [date, t] of totals) {
     if (date < start || date > end || t.total === null) continue;
     const tariff = tariffFor(tariffs, utility, date);
     if (!tariff) { missing++; continue; }
-    cost += t.total * tariff.price_per_unit;
+    variable += t.total * tariff.price_per_unit;
     currency = tariff.currency;
     days++;
   }
-  return { cost: days === 0 ? null : round3(cost), days, daysWithoutTariff: missing, currency };
+  let fixed = 0;
+  const last = fixedUpTo === null ? null : end < fixedUpTo ? end : fixedUpTo;
+  if (last !== null && start <= last && tariffs.some((t) => t.utility === utility && fixedMonthly(t) !== null)) {
+    for (let d = start; d <= last; d = addDays(d, 1)) {
+      const tariff = tariffFor(tariffs, utility, d);
+      const month = tariff ? fixedMonthly(tariff) : null;
+      if (!tariff || month === null) continue;
+      const { y, m } = parseISO(d);
+      fixed += month / daysInMonth(y, m);
+      currency = currency ?? tariff.currency;
+    }
+  }
+  fixed = Math.round(fixed * 100) / 100;
+  const v = days === 0 ? null : round3(variable);
+  return { cost: v === null && fixed === 0 ? null : round3((v ?? 0) + fixed), variable: v, fixed, days, daysWithoutTariff: missing, currency };
 }
 
 // ------------------------------------------------------- per guest forecast ----

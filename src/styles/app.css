@@ -530,3 +530,6 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
 .sample-banner span { min-width: 0; flex: 1 1 260px; }
 .sample-points { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; }
 .sample-card .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Tariffs: fixed monthly charge preview */
+.tariff-preview { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--rule); font-size: 14px; }

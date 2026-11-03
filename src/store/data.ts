@@ -182,7 +182,8 @@ export const useData = create<DataState>((set, get) => ({
         if (i >= 0) readings[i] = { ...readings[i], ...p }; else readings.push(p);
       }
       const metrics = sampleMetrics ?? metricRows.map(toMetric);
-      const tariffs: Tariff[] = tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string }));
+      const tariffs: Tariff[] = tariffRows.map((t) => ({ utility: t.utility as Tariff['utility'], price_per_unit: displayPrice(t.utility as string, Number(t.price_per_unit), settings), currency: t.currency as string, effective_from: t.effective_from as string,
+        demand: num(t.demand), demand_unit: (t.demand_unit as string | null) ?? null, fixed_rate: num(t.fixed_rate) }));
       if (sample) for (const [u, price] of Object.entries(SAMPLE_TARIFFS) as Array<[Tariff['utility'], number]>) {
         if (!tariffs.some((t) => t.utility === u && t.effective_from <= range.start)) tariffs.unshift({ utility: u, price_per_unit: displayPrice(u, price, settings), currency: 'SAR', effective_from: '2020-01-01' });
       }

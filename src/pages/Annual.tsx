@@ -23,10 +23,10 @@ export default function Annual() {
     return s.energy.map((m, i) => ({
       key: m.key, label: m.label, energy: s.energy[i].value, water: s.water[i].value, gas: s.gas[i].value, chilled: s.chilled[i].value,
       occ: act[i].occupancyAvg, guests: act[i].guests,
-      cost: UTILITIES.map((u) => costInRange(totals[u], tariffs, u, m.start, m.end).cost).filter((c): c is number => c !== null).reduce<number | null>((a, c) => (a ?? 0) + c, null),
+      cost: UTILITIES.map((u) => costInRange(totals[u], tariffs, u, m.start, m.end, year.today).cost).filter((c): c is number => c !== null).reduce<number | null>((a, c) => (a ?? 0) + c, null),
       budgetElec: budgetFor(budgets, fy, m.month, 'budget')?.electricity ?? null,
     }));
-  }, [totals, tariffs, metrics, budgets, fy, settings.fiscalStartMonth]);
+  }, [totals, tariffs, metrics, budgets, fy, settings.fiscalStartMonth, year.today]);
   const elecBudget = monthly.reduce<number | null>((a, m) => (m.budgetElec === null ? a : (a ?? 0) + m.budgetElec), null);
   const elecVar = variance(year.byUtility.energy.total, elecBudget);
 

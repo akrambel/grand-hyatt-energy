@@ -37,7 +37,7 @@ export async function buildMonthlyPdf(month: ReportMonth, upTo: string, user: st
     const { total, days } = sumRange(totals[u], month.start, end);
     const g = pairedIntensity(totals[u], metricsMap, 'guests', month.start, end);
     const r = pairedIntensity(totals[u], metricsMap, 'occupied_rooms', month.start, end);
-    const cost = costInRange(totals[u], st.tariffs, u, month.start, end);
+    const cost = costInRange(totals[u], st.tariffs, u, month.start, end, upTo);
     const target = enpiTarget(st.settings.enpiTargets, u, factor(u));
     return { u, total, days, perGuest: g.value, perRoom: r.value, target, cost, budget: budgetOf[u] };
   });

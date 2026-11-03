@@ -111,3 +111,18 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000e2');
 select case when count(*) = 1 then 'PASS reports: user can list reports' else 'FAIL user cannot list reports' end from public.monthly_reports;
 do $$ begin insert into public.monthly_reports (month_key, label, path) values ('2026-12', 'Dec 2026', 'x.pdf'); raise notice 'FAIL reports: user insert accepted'; exception when insufficient_privilege then raise notice 'PASS reports: user cannot add'; end $$;
 reset role;
+
+-- --------------------------------------------- 0011: fixed tariff charges ----
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a9');
+insert into public.tariffs (utility, price_per_unit, currency, effective_from, demand, demand_unit, fixed_rate)
+values ('chilled', 0.71, 'SAR', '2026-11-01', 2270, 'TR', 163.4);
+select case when (select demand * fixed_rate from public.tariffs where utility = 'chilled' and effective_from = '2026-11-01') = 370918.0
+  then 'PASS tariffs: admin saves a fixed charge (2270 TR x 163.4)' else 'FAIL tariffs fixed charge' end;
+do $$ begin insert into public.tariffs (utility, price_per_unit, effective_from, demand) values ('water', 2.93, '2026-11-01', 890.38);
+  raise notice 'FAIL tariffs: demand without fixed rate accepted'; exception when check_violation then raise notice 'PASS tariffs: demand needs a fixed rate'; end $$;
+do $$ begin insert into public.tariffs (utility, price_per_unit, effective_from, demand, fixed_rate) values ('water', 2.93, '2026-11-02', -1, 108.3);
+  raise notice 'FAIL tariffs: negative demand accepted'; exception when check_violation then raise notice 'PASS tariffs: negative demand refused'; end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000e2');
+do $$ begin insert into public.tariffs (utility, price_per_unit, effective_from, demand, fixed_rate) values ('energy', 0.29, '2026-11-01', 4125, 126.5);
+  raise notice 'FAIL tariffs: user insert accepted'; exception when insufficient_privilege then raise notice 'PASS tariffs: user cannot change tariffs'; end $$;
+reset role;

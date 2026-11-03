@@ -91,10 +91,19 @@ export interface DayTotal {
 
 export interface Tariff {
   utility: Utility;
+  /** variable price per consumed unit (display unit) */
   price_per_unit: number;
   currency: string;
   effective_from: string;
+  /** fixed monthly charge = diversified (contracted) demand × fixed rate, billed even with no consumption */
+  demand?: number | null;
+  demand_unit?: string | null;
+  fixed_rate?: number | null;
 }
+
+/** Fixed charge of a tariff for one whole month (null when the tariff has none). */
+export const fixedMonthly = (t: Pick<Tariff, 'demand' | 'fixed_rate'>): number | null =>
+  t.demand != null && t.fixed_rate != null ? Math.round(t.demand * t.fixed_rate * 100) / 100 : null;
 
 export interface BudgetRow {
   fiscal_year: number;

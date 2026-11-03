@@ -36,7 +36,7 @@ export function usePeriodStats(start: string, end: string) {
       byUtility[u] = {
         total, days, avgDaily: total !== null && days ? Math.round((total / days) * 1000) / 1000 : null,
         perGuest: g.value, perRoom: r.value, intensityDays: { guest: g.days, room: r.days },
-        cost: costInRange(totals[u], tariffs, u, start, end), coverage: coverage(totals[u], start, end, today),
+        cost: costInRange(totals[u], tariffs, u, start, end, today), coverage: coverage(totals[u], start, end, today),
       };
     }
     return { byUtility, metrics: summarizeMetrics(metrics, start, end), today };
