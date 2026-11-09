@@ -11,20 +11,25 @@ import DevicesTab from './admin/DevicesTab.tsx';
 import AuditTab from './admin/AuditTab.tsx';
 import ReadingsTab from './admin/ReadingsTab.tsx';
 import SampleTab from './admin/SampleTab.tsx';
+import ActivityTab from './admin/ActivityTab.tsx';
+import { useIsOwner } from '../store/auth.ts';
 
 const TABS = [
-  { id: 'users', label: 'Users', C: UsersTab }, { id: 'readings', label: 'Readings', C: ReadingsTab }, { id: 'import', label: 'Import', C: ImportTab }, { id: 'export', label: 'Export', C: ExportTab },
+  { id: 'users', label: 'Users', C: UsersTab }, { id: 'activity', label: 'Activity', C: ActivityTab }, { id: 'readings', label: 'Readings', C: ReadingsTab }, { id: 'import', label: 'Import', C: ImportTab }, { id: 'export', label: 'Export', C: ExportTab },
   { id: 'meters', label: 'Meters', C: MetersTab }, { id: 'tariffs', label: 'Tariffs', C: TariffsTab }, { id: 'settings', label: 'Settings & thresholds', C: SettingsTab },
   { id: 'devices', label: 'Devices', C: DevicesTab }, { id: 'audit', label: 'Audit & maintenance', C: AuditTab }, { id: 'sample', label: 'Sample data', C: SampleTab },
 ] as const;
 
 export default function Admin() {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('users');
-  const Active = TABS.find((t) => t.id === tab)!.C;
+  const owner = useIsOwner();
+  // the Activity tab (who is online, who changed what) is for the owner account only
+  const tabs = TABS.filter((t) => t.id !== 'activity' || owner);
+  const Active = (tabs.find((t) => t.id === tab) ?? tabs[0]).C;
   return (
     <>
       <PageHead title="Administration" subtitle="Users, readings, data import/export, meters, tariffs, alert thresholds and devices" />
-      <div className="tabs" role="tablist">{TABS.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={clsx('tab', tab === t.id && 'active')} onClick={() => setTab(t.id)}>{t.label}</button>)}</div>
+      <div className="tabs" role="tablist">{tabs.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={clsx('tab', tab === t.id && 'active')} onClick={() => setTab(t.id)}>{t.label}</button>)}</div>
       <Active />
     </>
   );

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Camera, FileText, Wifi, WifiOff, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
-import { useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
+import { heartbeat, useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
 import { useData, sendOfflineReadings, showSampleData } from '../store/data.ts';
 import { isSampleMode } from '../lib/sampleData.ts';
 import { useOutbox } from '../store/outbox.ts';
@@ -323,6 +323,17 @@ export function Layout() {
   if (!fyOptions.includes(fy)) fyOptions.push(fy);
 
   const current = NAV.find((n) => (n.path === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.path)));
+  // Lets the owner see who has the website open and on which page (Administration › Activity).
+  const pageLabel = current?.label ?? 'Energy & Utilities';
+  const profileId = profile?.id;
+  useEffect(() => {
+    if (!profileId) return;
+    const beat = () => { if (document.visibilityState === 'visible') void heartbeat(pageLabel); };
+    beat();
+    const t = window.setInterval(beat, 60000);
+    document.addEventListener('visibilitychange', beat);
+    return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', beat); };
+  }, [pageLabel, profileId]);
   const openAlerts = useData((s) => s.alerts.filter((a) => !a.resolved_at && !a.acknowledged_at).length);
 
   return (

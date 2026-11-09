@@ -533,3 +533,13 @@ html.scroll-held, html.scroll-held body { overflow: hidden; }
 
 /* Tariffs: fixed monthly charge preview */
 .tariff-preview { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--rule); font-size: 14px; }
+
+/* Administration › Activity (owner only) */
+.online-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.online-list li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--raised); min-width: 0; }
+.online-list li > div { min-width: 0; }
+.online-list li span:not(.online-dot) { display: block; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.online-list small { color: var(--muted); text-align: right; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .online-list li { grid-template-columns: auto 1fr; } .online-list small { grid-column: 2; text-align: left; } }
+.online-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--positive); box-shadow: 0 0 0 4px var(--pill-positive-bg); }
+.change-details { display: block; max-width: 46ch; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }

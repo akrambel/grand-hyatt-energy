@@ -191,10 +191,12 @@ update public.profiles set can_enter_data = true where username = 'TestViewer';
 select pg_temp.t_assert((select can_enter_data from public.profiles where username = 'TestViewer'),
   'admin can authorise a user for data entry');
 update public.profiles set can_enter_data = false where username = 'TestViewer';
-select pg_temp.t_assert((select count(*) from public.audit_log) > 0, 'admin can read the audit log');
+select pg_temp.t_assert((select count(*) from public.audit_log) = 0, 'an administrator who is not the owner cannot read the audit log (0012)');
+reset role;
 select pg_temp.t_assert(
   exists (select 1 from public.audit_log where table_name = 'readings' and action = 'DELETE' and username = 'TestAdmin'),
   'audit log records who deleted a reading');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 -- tariffs, budgets, settings
 insert into public.tariffs (utility, price_per_unit, effective_from) values ('energy', 0.18, '2026-10-01');
 update public.app_settings set value = '15' where key = 'device_offline_minutes';
@@ -288,9 +290,9 @@ select pg_temp.t_fails($$update public.alerts set title = 'hacked'$$, 'users can
 reset role;
 
 -- ======================================================== 9. bulk import ======
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-create temp table _audit_before as select count(*) as n from public.audit_log;
+create temp table _audit_before as select count(*) as n from public.audit_log;  -- counted as superuser (0012: only the owner reads it)
 grant select on _audit_before to authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select public.import_rows('readings',
   jsonb_build_array(
     jsonb_build_object('meter_code', 'EN-05', 'reading_date', '2026-10-01', 'closing', 1000),
@@ -324,8 +326,10 @@ select public.import_rows('budgets',
   '[{"fiscal_year":2026,"month":10,"kind":"budget","gas":1000,"electricity":50000,"water":900}]', 'overwrite');
 select public.import_rows('lpg', '[{"tank":1,"level_fraction":0.45},{"tank":2,"level_fraction":0.8}]', 'overwrite');
 select pg_temp.t_assert((select count(*) from public.v_lpg_latest) = 2, 'LPG import stored 2 tank levels');
+reset role;
 select pg_temp.t_assert((select count(*) from public.audit_log) = (select n from _audit_before),
   'bulk import does not flood the audit log');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select public.log_import('test.xlsx', 'overwrite', '{"ok": true}');
 select pg_temp.t_assert((select count(*) from public.import_log) = 1, 'import is logged once');
 select pg_temp.t_fails($$select public.import_rows('readings', '[{"meter_code":"EN-05","reading_date":"2999-01-01","closing":1}]')$$,

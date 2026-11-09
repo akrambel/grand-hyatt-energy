@@ -126,3 +126,27 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000e2');
 do $$ begin insert into public.tariffs (utility, price_per_unit, effective_from, demand, fixed_rate) values ('energy', 0.29, '2026-11-01', 4125, 126.5);
   raise notice 'FAIL tariffs: user insert accepted'; exception when insufficient_privilege then raise notice 'PASS tariffs: user cannot change tariffs'; end $$;
 reset role;
+
+-- ------------------------------------------------- 0012: owner activity ----
+-- d1 = owner (akram_owner), a9 = another administrator, e2 = user
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a9');
+select public.log_sign_in('Phone · Chrome');
+select public.heartbeat('Daily Entry', 'Phone · Chrome');
+select case when count(*) = 0 then 'PASS activity: another admin cannot read sign-ins' else 'FAIL admin reads sign-ins' end from public.sign_in_log;
+select case when count(*) = 0 then 'PASS activity: another admin cannot read the change history' else 'FAIL admin reads audit log' end from public.audit_log;
+do $$ begin perform public.owner_people(); raise notice 'FAIL activity: admin called owner_people';
+  exception when insufficient_privilege then raise notice 'PASS activity: another admin cannot open the people list'; end $$;
+do $$ begin insert into public.sign_in_log (username) values ('fake'); raise notice 'FAIL activity: fake sign-in inserted';
+  exception when insufficient_privilege then raise notice 'PASS activity: sign-ins cannot be written directly'; end $$;
+do $$ begin perform count(*) from public.user_presence; raise notice 'FAIL activity: presence table readable';
+  exception when insufficient_privilege then raise notice 'PASS activity: presence table is not readable directly'; end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d1');
+select case when count(*) >= 1 then 'PASS activity: owner sees sign-ins' else 'FAIL owner sign-ins' end from public.sign_in_log where username = 'report_admin';
+select case when count(*) > 0 then 'PASS activity: owner sees the change history' else 'FAIL owner audit' end from public.audit_log;
+select case when p.page = 'Daily Entry' and p.device = 'Phone · Chrome' and p.last_seen_at > now() - interval '1 minute' and p.sign_ins_30d = 1
+  then 'PASS activity: owner sees who is online, on which page and device' else 'FAIL owner_people ' || coalesce(p.page, 'null') end
+  from public.owner_people() p where p.username = 'report_admin';
+reset role;
+insert into public.room_readings (room_number, reading_date, closing, status) values ('001', public.local_today(), 10, 'occupied') on conflict do nothing;
+select case when exists (select 1 from public.audit_log where table_name = 'room_readings')
+  then 'PASS activity: guest-room readings are recorded in the history' else 'FAIL room readings not audited' end;
