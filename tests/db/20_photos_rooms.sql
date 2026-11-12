@@ -150,3 +150,8 @@ reset role;
 insert into public.room_readings (room_number, reading_date, closing, status) values ('001', public.local_today(), 10, 'occupied') on conflict do nothing;
 select case when exists (select 1 from public.audit_log where table_name = 'room_readings')
   then 'PASS activity: guest-room readings are recorded in the history' else 'FAIL room readings not audited' end;
+
+-- ============================================== 0013 ETS Room meter =========
+reset role;
+select case when count(*) = 1 then 'PASS ETS Room: one chilled water meter, not added to the chilled water total' else 'FAIL ETS Room: ' || count(*) end
+  from public.meters where code = 'CW-ETS' and utility = 'chilled' and name = 'ETS Room' and not include_in_total and active;

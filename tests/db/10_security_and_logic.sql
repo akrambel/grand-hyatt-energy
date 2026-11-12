@@ -69,7 +69,7 @@ reset role;
 
 -- ================================================= 2. read-only regular user ==
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
-select pg_temp.t_assert((select count(*) from public.meters) = 85, 'viewer can read meters (84 seeded + 1 test)');
+select pg_temp.t_assert((select count(*) from public.meters) = 86, 'viewer can read meters (84 seeded + ETS Room + 1 test)');
 select pg_temp.t_fails(
   $$insert into public.readings (meter_id, reading_date, closing)
     select id, current_date - 2, 100 from public.meters where code = 'EN-01'$$,
@@ -340,7 +340,7 @@ reset role;
 select pg_temp.t_assert((select count(*) from public.meters where code like 'EN-%') = 10, 'seed: 10 energy meters');
 select pg_temp.t_assert((select count(*) from public.meters where code like 'WA-%') = 10, 'seed: 10 water meters');
 select pg_temp.t_assert((select count(*) from public.meters where code like 'GA-%') = 9,  'seed: 9 gas meters');
-select pg_temp.t_assert((select count(*) from public.meters where code like 'CW-%') = 55, 'seed: 55 chilled-water meters');
+select pg_temp.t_assert((select count(*) from public.meters where code ~ '^CW-[0-9]+$') = 55, 'seed: 55 chilled-water zone meters');
 
 -- ================================ 11. water sections and guest-room chilled water ==
 select pg_temp.t_assert((select count(*) from public.meters where category = 'standard') = (select count(*) from public.meters),
