@@ -155,3 +155,7 @@ select case when exists (select 1 from public.audit_log where table_name = 'room
 reset role;
 select case when count(*) = 1 then 'PASS ETS Room: one chilled water meter, not added to the chilled water total' else 'FAIL ETS Room: ' || count(*) end
   from public.meters where code = 'CW-ETS' and utility = 'chilled' and name = 'ETS Room' and not include_in_total and active;
+
+-- ============================================== 0014 main + MDB meters ======
+select case when count(*) = 8 then 'PASS main meter + MDB 1-7: eight energy meters, not added to the energy total' else 'FAIL main/MDB: ' || count(*) end
+  from public.meters where utility = 'energy' and (code = 'EN-MAIN' or code ~ '^EN-MDB[1-7]$') and not include_in_total and active and unit = 'kWh';

@@ -69,7 +69,7 @@ reset role;
 
 -- ================================================= 2. read-only regular user ==
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
-select pg_temp.t_assert((select count(*) from public.meters) = 86, 'viewer can read meters (84 seeded + ETS Room + 1 test)');
+select pg_temp.t_assert((select count(*) from public.meters) = 94, 'viewer can read meters (84 seeded + ETS Room + main + 7 MDB + 1 test)');
 select pg_temp.t_fails(
   $$insert into public.readings (meter_id, reading_date, closing)
     select id, current_date - 2, 100 from public.meters where code = 'EN-01'$$,
@@ -337,7 +337,7 @@ select pg_temp.t_fails($$select public.import_rows('readings', '[{"meter_code":"
 reset role;
 
 -- ============================================================ 10. seed data ====
-select pg_temp.t_assert((select count(*) from public.meters where code like 'EN-%') = 10, 'seed: 10 energy meters');
+select pg_temp.t_assert((select count(*) from public.meters where code ~ '^EN-[0-9]+$') = 10, 'seed: 10 energy area meters');
 select pg_temp.t_assert((select count(*) from public.meters where code like 'WA-%') = 10, 'seed: 10 water meters');
 select pg_temp.t_assert((select count(*) from public.meters where code like 'GA-%') = 9,  'seed: 9 gas meters');
 select pg_temp.t_assert((select count(*) from public.meters where code ~ '^CW-[0-9]+$') = 55, 'seed: 55 chilled-water zone meters');
