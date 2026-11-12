@@ -5,6 +5,7 @@
 import { addDays, eachDay, parseISO } from './dates.ts';
 import type { BudgetRow, DailyMetric, Meter, Reading, Utility } from './types.ts';
 import type { RoomReading } from './rooms.ts';
+import { countsInTotal } from './calc.ts';
 
 const KEY = 'ghrs-sample-v1';
 /** Counters start here so a date always gets the same reading, whatever period is loaded. */
@@ -91,7 +92,7 @@ export function sampleBudgets(fy: number, months: Array<{ month: number; start: 
   for (const mo of months) {
     const days = eachDay(mo.start, mo.end).map(metricOf);
     const sum: Record<Utility, number> = { energy: 0, water: 0, gas: 0, chilled: 0 };
-    for (const d of days) for (const m of counted) sum[m.utility] += sampleUse(m, baseOf(m), d);
+    for (const d of days) for (const m of counted) if (countsInTotal(m, d.metric_date)) sum[m.utility] += sampleUse(m, baseOf(m), d);
     const rooms = days.reduce((a, d) => a + (d.occupied_rooms ?? 0), 0);
     const guests = days.reduce((a, d) => a + (d.guests ?? 0), 0);
     const occ = days.reduce((a, d) => a + (d.occupancy_rate ?? 0), 0) / days.length;

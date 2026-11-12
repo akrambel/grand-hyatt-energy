@@ -22,7 +22,7 @@ export function monthlySeries(totals: Map<string, DayTotal>, fy: number, startMo
 export interface AreaPoint { area: string; total: number | null; days: number; meters: number }
 
 export function areaTotals(meters: Meter[], meterDays: Map<string, MeterDay>, utility: string, start: string, end: string): AreaPoint[] {
-  const byId = new Map(meters.filter((m) => m.utility === utility && m.active && m.include_in_total).map((m) => [m.id, m]));
+  const byId = new Map(meters.filter((m) => m.utility === utility && m.active && (m.in_area_chart ?? m.include_in_total)).map((m) => [m.id, m]));
   const acc = new Map<string, { sum: number; days: Set<string>; meters: Set<string> }>();
   for (const md of meterDays.values()) {
     const m = byId.get(md.meter_id);

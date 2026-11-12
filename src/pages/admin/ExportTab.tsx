@@ -35,7 +35,7 @@ export default function ExportTab() {
         { name: 'Readings', title: `Meter readings ${label}`, headers: ['Date', 'Utility', 'Area', 'Meter', 'Code', 'Unit', 'Opening', 'Closing', 'Consumption', 'Status'],
           rows: readings.flatMap((r) => { const m = code.get(r.meter_id); if (!m) return []; const d = meterDays.get(`${r.meter_id}|${r.reading_date}`); return [[r.reading_date, m.utility, m.area, m.name, m.code, m.unit, d?.opening ?? null, r.closing, d?.consumption ?? null, d?.status ?? '']]; }) },
         { name: 'Daily metrics', title: `Climate & occupancy ${label}`, headers: ['Date', 'Avg temp °C (manual)', 'Occupancy (fraction)', 'Occupied rooms', 'Guests'], rows: metrics.map((m) => [m.metric_date, m.avg_temp_c, m.occupancy_rate, m.occupied_rooms, m.guests]) },
-        { name: 'Meters', headers: ['Code', 'Utility', 'Area', 'Name', 'Unit', 'Counted in total', 'Rollover at', 'Active'], rows: meters.map((m) => [m.code, m.utility, m.area, m.name, m.unit, m.include_in_total ? 'Yes' : 'No', m.rollover_at, m.active ? 'Yes' : 'No']) },
+        { name: 'Meters', headers: ['Code', 'Utility', 'Area', 'Name', 'Unit', 'Counted in total', 'Counted from', 'Counted until', 'Area chart', 'Rollover at', 'Active'], rows: meters.map((m) => [m.code, m.utility, m.area, m.name, m.unit, m.include_in_total ? 'Yes' : 'No', m.counted_from ?? '', m.counted_until ?? '', (m.in_area_chart ?? m.include_in_total) ? 'Yes' : 'No', m.rollover_at, m.active ? 'Yes' : 'No']) },
       ], `Energy-data-${label}.xlsx`);
       notify.success('Data exported');
     } catch (e) { notify.error('Export failed', friendlyError(e)); } finally { setBusy(null); }

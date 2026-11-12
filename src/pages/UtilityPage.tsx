@@ -11,7 +11,7 @@ import { KpiCard, Note, PageHead, StatusPill } from '../components/ui.tsx';
 import { areaTotals, dailySeries, monthlySeries } from '../lib/aggregate.ts';
 import { analyzeSeries } from '../lib/anomaly.ts';
 import type { PointAnalysis } from '../lib/anomaly.ts';
-import { meterTotalsInRange } from '../lib/calc.ts';
+import { countedLabel, meterTotalsInRange } from '../lib/calc.ts';
 import { UTILITY_INFO } from '../lib/types.ts';
 import type { Utility } from '../lib/types.ts';
 import { fmtAuto, fmtMoney, fmtNumber, NA } from '../lib/format.ts';
@@ -117,7 +117,7 @@ export default function UtilityPage({ utility }: { utility: Utility }) {
             { key: 'a', header: 'Area', value: (r) => r.area }, { key: 'n', header: 'Meter', value: (r) => r.name },
             { key: 't', header: `Total (${info.unit})`, num: true, value: (r) => r.total, render: (r) => fmtNumber(r.total, 3) },
             { key: 'd', header: 'Days', num: true, value: (r) => r.days },
-            { key: 'i', header: 'Counted in total', value: (r) => (r.include_in_total ? 'Yes' : 'No – informational') },
+            { key: 'i', header: 'Counted in total', value: (r) => (r.include_in_total ? countedLabel(r, formatDate) : 'No – informational') },
           ]} rowKey={(r) => r.id} />
         </div>
       </div>

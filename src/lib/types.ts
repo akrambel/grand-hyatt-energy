@@ -38,6 +38,11 @@ export interface Meter {
   unit: string;
   sort_order: number;
   include_in_total: boolean;
+  /** Counted in the utility total only from / until these days (inclusive; null = no limit). */
+  counted_from?: string | null;
+  counted_until?: string | null;
+  /** Shown in the "Consumption by area" charts (defaults to include_in_total). */
+  in_area_chart?: boolean;
   rollover_at: number | null;
   active: boolean;
   /** Section of the utility the meter belongs to (water: potable, hot water, irrigation). Default 'standard'. */

@@ -81,7 +81,9 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 const toMeter = (r: Record<string, unknown>): Meter => ({
   id: r.id as string, code: r.code as string, utility: r.utility as Meter['utility'], area: r.area as string,
   name: r.name as string, unit: r.unit as string, sort_order: Number(r.sort_order ?? 0),
-  include_in_total: r.include_in_total !== false, rollover_at: num(r.rollover_at), active: r.active !== false,
+  include_in_total: r.include_in_total !== false,
+  counted_from: (r.counted_from as string | null | undefined) ?? null, counted_until: (r.counted_until as string | null | undefined) ?? null,
+  in_area_chart: r.in_area_chart === undefined || r.in_area_chart === null ? r.include_in_total !== false : r.in_area_chart === true, rollover_at: num(r.rollover_at), active: r.active !== false,
   category: ((r.category as MeterCategory | undefined) ?? 'standard'),
 });
 

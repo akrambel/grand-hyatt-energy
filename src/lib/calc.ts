@@ -61,18 +61,38 @@ export function buildMeterDays(meters: Meter[], readings: Reading[]): Map<string
 
 export type UtilityDayTotals = Record<Utility, Map<string, DayTotal>>;
 
-/** Daily totals per utility (only meters flagged include_in_total and active). */
+/** True when the meter's consumption on `date` belongs to its utility total (active, flagged, inside its counted window). */
+export function countsInTotal(m: Meter, date: string): boolean {
+  return m.active && m.include_in_total && (!m.counted_from || date >= m.counted_from) && (!m.counted_until || date <= m.counted_until);
+}
+
+/** "Yes", "No", "Yes, from 12 Nov 2026", "Yes, until 11 Nov 2026" … for meter lists. */
+export function countedLabel(m: Meter, fmt: (iso: string) => string = (d) => d): string {
+  if (!m.include_in_total) return 'No';
+  if (m.counted_from && m.counted_until) return `Yes, ${fmt(m.counted_from)} to ${fmt(m.counted_until)}`;
+  if (m.counted_from) return `Yes, from ${fmt(m.counted_from)}`;
+  if (m.counted_until) return `Yes, until ${fmt(m.counted_until)}`;
+  return 'Yes';
+}
+
+/** Daily totals per utility (only meters counted in the total on that day, see countsInTotal). */
 export function dailyTotals(meters: Meter[], meterDays: Map<string, MeterDay>): UtilityDayTotals {
   const meterById = new Map(meters.map((m) => [m.id, m]));
-  const expected: Record<Utility, number> = { energy: 0, water: 0, gas: 0, chilled: 0 };
-  for (const m of meters) if (m.active && m.include_in_total) expected[m.utility]++;
+  const counted = meters.filter((m) => m.active && m.include_in_total);
+  const expectedCache = new Map<string, number>();
+  const expected = (u: Utility, date: string): number => {
+    const k = `${u}|${date}`;
+    let n = expectedCache.get(k);
+    if (n === undefined) { n = counted.filter((m) => m.utility === u && countsInTotal(m, date)).length; expectedCache.set(k, n); }
+    return n;
+  };
 
   const acc: Record<Utility, Map<string, { sum: number; n: number }>> = {
     energy: new Map(), water: new Map(), gas: new Map(), chilled: new Map(),
   };
   for (const md of meterDays.values()) {
     const meter = meterById.get(md.meter_id);
-    if (!meter || !meter.active || !meter.include_in_total) continue;
+    if (!meter || !countsInTotal(meter, md.date)) continue;
     if (md.consumption === null) continue;
     const slot = acc[meter.utility].get(md.date) ?? { sum: 0, n: 0 };
     slot.sum += md.consumption;
@@ -83,7 +103,7 @@ export function dailyTotals(meters: Meter[], meterDays: Map<string, MeterDay>): 
   for (const u of UTILITIES) {
     const map = new Map<string, DayTotal>();
     for (const [date, s] of acc[u]) {
-      map.set(date, { date, total: round3(s.sum), counted: s.n, expected: expected[u] });
+      map.set(date, { date, total: round3(s.sum), counted: s.n, expected: expected(u, date) });
     }
     out[u] = map;
   }

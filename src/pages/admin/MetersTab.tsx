@@ -11,6 +11,8 @@ import type { Meter, Utility } from '../../lib/types.ts';
 import { notify } from '../../store/ui.ts';
 import { parseReading } from '../../lib/validate.ts';
 import { fmtNumber } from '../../lib/format.ts';
+import { countedLabel } from '../../lib/calc.ts';
+import { formatDate } from '../../lib/dates.ts';
 import { QrCode } from 'lucide-react';
 import { stickerSheetHtml } from '../../lib/qrStickers.ts';
 import { ENV } from '../../config/env.ts';
@@ -26,11 +28,11 @@ export default function MetersTab() {
   return (
     <div className="card">
       <div className="card-head"><h3>Meters ({meters.length})</h3><div className="actions"><button className="btn" onClick={() => setQr(true)}><QrCode size={15} />QR stickers</button><button className="btn primary" onClick={() => setAdding(true)}>Add meter</button></div></div>
-      <Note kind="info"><strong>Counted in total</strong> decides whether a meter is added into the utility’s daily total (as in the workbook). Turn it off for sub-meters that would count the same consumption twice – check main vs. sub-meters (for example the LPG main meter) with the engineering team.</Note>
+      <Note kind="info"><strong>Counted in total</strong> decides whether a meter is added into the utility’s daily total. Count either the main meter or its sub-meters, never both, so nothing is counted twice. Optional dates limit when a meter is counted, for example when a main meter replaces the sub-meters from a given day. <strong>Area chart</strong> decides which meters make up “Consumption by area”.</Note>
       <DataTable rows={meters} rowKey={(m) => m.id} columns={[
         { key: 'c', header: 'Code', value: (m) => m.code }, { key: 'u', header: 'Utility', value: (m) => UTILITY_INFO[m.utility].label }, { key: 'a', header: 'Area', value: (m) => m.area }, { key: 'cat', header: 'Section', value: (m) => (m.utility === 'water' ? CATEGORY_LABEL[m.category ?? 'standard'] : '') },
         { key: 'n', header: 'Name', value: (m) => m.name }, { key: 'un', header: 'Unit (stored)', value: (m) => m.nativeUnit ?? m.unit },
-        { key: 'i', header: 'Counted in total', value: (m) => (m.include_in_total ? 'Yes' : 'No') }, { key: 'r', header: 'Rollover at', num: true, value: (m) => m.rollover_at, render: (m) => fmtNumber(m.rollover_at) },
+        { key: 'i', header: 'Counted in total', value: (m) => countedLabel(m, formatDate) }, { key: 'ch', header: 'Area chart', value: (m) => ((m.in_area_chart ?? m.include_in_total) ? 'Yes' : 'No') }, { key: 'r', header: 'Rollover at', num: true, value: (m) => m.rollover_at, render: (m) => fmtNumber(m.rollover_at) },
         { key: 'ac', header: 'Active', value: (m) => (m.active ? 'Yes' : 'No') }, { key: 'x', header: '', value: () => '', render: (m) => <button className="btn sm" onClick={() => setEdit(m)}>Edit</button> },
       ]} />
       {qr && <QrStickers meters={meters.filter((m) => m.active)} onClose={() => setQr(false)} />}
@@ -42,13 +44,14 @@ export default function MetersTab() {
 function MeterForm({ meter, onClose, onSaved }: { meter: Meter | null; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ code: meter?.code ?? '', utility: (meter?.utility ?? 'water') as Utility, area: meter?.area ?? '', name: meter?.name ?? '', unit: meter?.nativeUnit ?? meter?.unit ?? 'm³',
     category: (meter?.category ?? 'standard') as MeterCategory,
-    include_in_total: meter?.include_in_total ?? true, rollover_at: meter?.rollover_at != null ? String(toNative(meter.rollover_at, meter.unitFactor ?? 1)) : '', active: meter?.active ?? true });
+    include_in_total: meter?.include_in_total ?? true, counted_from: meter?.counted_from ?? '', counted_until: meter?.counted_until ?? '', in_area_chart: meter?.in_area_chart ?? meter?.include_in_total ?? true, rollover_at: meter?.rollover_at != null ? String(toNative(meter.rollover_at, meter.unitFactor ?? 1)) : '', active: meter?.active ?? true });
   const [busy, setBusy] = useState(false);
   const roll = f.rollover_at.trim() === '' ? null : parseReading(f.rollover_at);
-  const bad = !f.code.trim() || !f.name.trim() || !f.area.trim() || (roll !== null && (Number.isNaN(roll) || roll <= 0));
+  const badWindow = !!f.counted_from && !!f.counted_until && f.counted_from > f.counted_until;
+  const bad = !f.code.trim() || !f.name.trim() || !f.area.trim() || (roll !== null && (Number.isNaN(roll) || roll <= 0)) || badWindow;
   const save = async () => {
     setBusy(true);
-    const row = { code: f.code.trim(), utility: f.utility, area: f.area.trim(), name: f.name.trim(), unit: f.unit.trim(), include_in_total: f.include_in_total, rollover_at: roll, active: f.active, category: f.utility === 'water' ? f.category : 'standard' };
+    const row = { code: f.code.trim(), utility: f.utility, area: f.area.trim(), name: f.name.trim(), unit: f.unit.trim(), include_in_total: f.include_in_total, counted_from: f.include_in_total && f.counted_from ? f.counted_from : null, counted_until: f.include_in_total && f.counted_until ? f.counted_until : null, in_area_chart: f.in_area_chart, rollover_at: roll, active: f.active, category: f.utility === 'water' ? f.category : 'standard' };
     const { error } = meter ? await supabase.from('meters').update(row).eq('id', meter.id) : await supabase.from('meters').insert(row);
     setBusy(false);
     if (error) notify.error('Meter not saved', friendlyError(error)); else { notify.success('Meter saved', row.name); onSaved(); }
@@ -70,6 +73,12 @@ function MeterForm({ meter, onClose, onSaved }: { meter: Meter | null; onClose: 
         <Field label="Rollover value (optional)" hint="Largest value the meter display shows before it restarts at 0"><input className="input mono" inputMode="decimal" value={f.rollover_at} onChange={(e) => setF({ ...f, rollover_at: e.target.value })} /></Field>
       </div>
       <label style={{ display: 'block', marginTop: 10 }}><input type="checkbox" checked={f.include_in_total} onChange={(e) => setF({ ...f, include_in_total: e.target.checked })} /> Counted in the utility total</label>
+      {f.include_in_total && (
+        <div className="form-grid" style={{ marginTop: 6 }}>
+          <Field label="Counted from (optional)" hint="Empty = from the start"><input className="input" type="date" value={f.counted_from} onChange={(e) => setF({ ...f, counted_from: e.target.value })} /></Field>
+          <Field label="Counted until (optional)" hint={badWindow ? 'Must be on or after the “from” day' : 'Empty = no end'}><input className="input" type="date" value={f.counted_until} onChange={(e) => setF({ ...f, counted_until: e.target.value })} /></Field>
+        </div>)}
+      <label style={{ display: 'block' }}><input type="checkbox" checked={f.in_area_chart} onChange={(e) => setF({ ...f, in_area_chart: e.target.checked })} /> Shown in the “Consumption by area” charts</label>
       <label style={{ display: 'block' }}><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Active</label>
     </Modal>
   );
