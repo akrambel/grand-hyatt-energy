@@ -151,17 +151,15 @@ insert into public.room_readings (room_number, reading_date, closing, status) va
 select case when exists (select 1 from public.audit_log where table_name = 'room_readings')
   then 'PASS activity: guest-room readings are recorded in the history' else 'FAIL room readings not audited' end;
 
--- ============================================== 0013-0015 main meters =======
-select case when count(*) = 1 then 'PASS ETS Room: chilled water total from 12 Nov 2026, not in the area chart' else 'FAIL ETS Room: ' || count(*) end
-  from public.meters where code = 'CW-ETS' and name = 'ETS Room' and include_in_total and counted_from = date '2026-11-12' and counted_until is null and not in_area_chart;
-select case when count(*) = 1 then 'PASS main meter: energy total from 12 Nov 2026, not in the area chart' else 'FAIL main meter: ' || count(*) end
-  from public.meters where code = 'EN-MAIN' and include_in_total and counted_from = date '2026-11-12' and not in_area_chart and unit = 'kWh';
+-- ============================================== 0013-0016 main meters =======
+select case when count(*) = 2 then 'PASS main meters (Main Electricity Meter, ETS Room): the totals on every day, not in the area chart' else 'FAIL main meters: ' || count(*) end
+  from public.meters where code in ('EN-MAIN', 'CW-ETS') and include_in_total and counted_from is null and counted_until is null and not in_area_chart;
 select case when count(*) = 7 and count(distinct area) = 7 and bool_and(area = name) then 'PASS MDB 1-7: each its own area, in the area chart, not added to the total' else 'FAIL MDB: ' || count(*) end
   from public.meters where code ~ '^EN-MDB[1-7]$' and not include_in_total and in_area_chart;
-select case when count(*) = 10 then 'PASS energy outlet meters: counted until 11 Nov 2026 (history kept), then for information' else 'FAIL outlets: ' || count(*) end
-  from public.meters where code ~ '^EN-[0-9]+$' and include_in_total and counted_until = date '2026-11-11' and not in_area_chart;
-select case when count(*) = 55 then 'PASS chilled zone meters: counted until 11 Nov 2026, still in the area chart' else 'FAIL zones: ' || count(*) end
-  from public.meters where code ~ '^CW-[0-9]+$' and include_in_total and counted_until = date '2026-11-11' and in_area_chart;
+select case when count(*) = 10 then 'PASS energy outlet meters: information only' else 'FAIL outlets: ' || count(*) end
+  from public.meters where code ~ '^EN-[0-9]+$' and not include_in_total and not in_area_chart;
+select case when count(*) = 55 then 'PASS chilled zone meters: information only, still in the area chart' else 'FAIL zones: ' || count(*) end
+  from public.meters where code ~ '^CW-[0-9]+$' and not include_in_total and in_area_chart;
 select case when (select count(*) from public.meters where utility = 'water' and in_area_chart = include_in_total) = (select count(*) from public.meters where utility = 'water')
   then 'PASS water meters unchanged by 0015' else 'FAIL water meters changed' end;
 do $$ begin
@@ -169,3 +167,7 @@ do $$ begin
     raise notice 'FAIL counted window: "from" after "until" accepted';
   exception when check_violation then raise notice 'PASS counted window: "from" after "until" is refused'; end;
 end $$;
+insert into public.meters (code, utility, area, name, unit, category) values ('HW-01', 'water', 'Potable Water Room', 'Hot Water', 'm³', 'hot_water') on conflict do nothing;
+\i supabase/migrations/0016_main_meters_from_the_start.sql
+select case when count(*) = 1 then 'PASS HW-01 in the Potable Water Room is potable (cold) water' else 'FAIL HW-01' end
+  from public.meters where code = 'HW-01' and category = 'standard' and name = 'Potable Water';
