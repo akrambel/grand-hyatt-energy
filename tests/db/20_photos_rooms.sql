@@ -160,8 +160,6 @@ select case when count(*) = 10 then 'PASS energy outlet meters: information only
   from public.meters where code ~ '^EN-[0-9]+$' and not include_in_total and not in_area_chart;
 select case when count(*) = 55 then 'PASS chilled zone meters: information only, still in the area chart' else 'FAIL zones: ' || count(*) end
   from public.meters where code ~ '^CW-[0-9]+$' and not include_in_total and in_area_chart;
-select case when (select count(*) from public.meters where utility = 'water' and in_area_chart = include_in_total) = (select count(*) from public.meters where utility = 'water')
-  then 'PASS water meters unchanged by 0015' else 'FAIL water meters changed' end;
 do $$ begin
   begin update public.meters set counted_from = date '2026-12-01', counted_until = date '2026-11-01' where code = 'EN-MAIN';
     raise notice 'FAIL counted window: "from" after "until" accepted';
@@ -171,3 +169,17 @@ insert into public.meters (code, utility, area, name, unit, category) values ('H
 \i supabase/migrations/0016_main_meters_from_the_start.sql
 select case when count(*) = 1 then 'PASS HW-01 in the Potable Water Room is potable (cold) water' else 'FAIL HW-01' end
   from public.meters where code = 'HW-01' and category = 'standard' and name = 'Potable Water';
+\i supabase/migrations/0017_mdb_readings_oct_2026.sql
+select case when count(*) = 56 and sum(closing) > 0 then 'PASS MDB readings 23-30 Oct loaded (56 rows)' else 'FAIL MDB readings: ' || count(*) end
+  from public.readings r join public.meters m on m.id = r.meter_id where m.code ~ '^EN-MDB[1-7]$' and r.reading_date between date '2026-10-23' and date '2026-10-30';
+select case when (select consumption from public.v_meter_daily where code = 'EN-MDB1' and reading_date = date '2026-10-24') = 4447.61 then 'PASS MDB 1 consumption on 24 Oct = 4,447.61 kWh' else 'FAIL MDB 1 consumption' end;
+insert into public.meters (code, utility, area, name, unit, category) values ('IR-01', 'water', 'Irrigation Room', 'Irrigation Water', 'm³', 'irrigation') on conflict do nothing;
+\i supabase/migrations/0018_gas_and_water_totals.sql
+select case when (select count(*) from public.meters where utility = 'gas' and include_in_total) = 1
+             and exists (select 1 from public.meters where code = 'GA-01' and include_in_total and not in_area_chart)
+             and (select count(*) from public.meters where code ~ '^GA-0[2-9]$' and not include_in_total and in_area_chart) = 8
+  then 'PASS gas: LPG Main Gas Meter is the total, the 8 kitchen meters make up the area chart' else 'FAIL gas totals' end;
+select case when (select string_agg(code, ',' order by code) from public.meters where utility = 'water' and include_in_total and code !~ '^TST-') = 'HW-01,IR-01'
+  then 'PASS water: total = Potable Water + Irrigation Water' else 'FAIL water totals' end;
+select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,IR-01'
+  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Potable + Irrigation' else 'FAIL totals: ' || (select string_agg(code, ',' order by code) from public.meters where include_in_total and active) end;
