@@ -69,7 +69,7 @@ reset role;
 
 -- ================================================= 2. read-only regular user ==
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
-select pg_temp.t_assert((select count(*) from public.meters) = 94, 'viewer can read meters (84 seeded + ETS Room + main + 7 MDB + 1 test)');
+select pg_temp.t_assert((select count(*) from public.meters) = 95, 'viewer can read meters (84 seeded + ETS Room + main + 7 MDB + Hot Water + 1 test)');
 select pg_temp.t_fails(
   $$insert into public.readings (meter_id, reading_date, closing)
     select id, current_date - 2, 100 from public.meters where code = 'EN-01'$$,
@@ -343,14 +343,14 @@ select pg_temp.t_assert((select count(*) from public.meters where code like 'GA-
 select pg_temp.t_assert((select count(*) from public.meters where code ~ '^CW-[0-9]+$') = 55, 'seed: 55 chilled-water zone meters');
 
 -- ================================ 11. water sections and guest-room chilled water ==
-select pg_temp.t_assert((select count(*) from public.meters where category = 'standard') = (select count(*) from public.meters),
-  'all existing meters default to the standard section');
+select pg_temp.t_assert((select count(*) from public.meters where category = 'standard') = (select count(*) from public.meters where code <> 'HW-HOT'),
+  'all existing meters default to the standard section (except the Hot Water meter of 0021)');
 select pg_temp.t_fails($$insert into public.meters (code, utility, area, name, unit, category) values ('TST-BAD','water','a','b','m³','swimming')$$,
   'unknown water section is rejected', '23514');
 insert into public.meters (code, utility, area, name, unit, category) values
   ('TST-HOT', 'water', 'Test', 'Hot water test meter', 'm³', 'hot_water'),
   ('TST-IRR', 'water', 'Test', 'Irrigation test meter', 'm³', 'irrigation');
-select pg_temp.t_assert((select count(*) from public.meters where category in ('hot_water','irrigation')) = 2, 'hot water and irrigation meters can be created');
+select pg_temp.t_assert((select count(*) from public.meters where category in ('hot_water','irrigation') and code like 'TST-%') = 2, 'hot water and irrigation meters can be created');
 
 -- rooms: administrators manage the room list, viewers cannot
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');

@@ -165,7 +165,7 @@ do $$ begin
     raise notice 'FAIL counted window: "from" after "until" accepted';
   exception when check_violation then raise notice 'PASS counted window: "from" after "until" is refused'; end;
 end $$;
-insert into public.meters (code, utility, area, name, unit, category) values ('HW-01', 'water', 'Potable Water Room', 'Hot Water', 'm³', 'hot_water') on conflict do nothing;
+insert into public.meters (code, utility, area, name, unit, category) values ('HW-01', 'water', 'Potable Water Room', 'Potable Water', 'm³', 'hot_water') on conflict do nothing;
 \i supabase/migrations/0016_main_meters_from_the_start.sql
 select case when count(*) = 1 then 'PASS HW-01 in the Potable Water Room is potable (cold) water' else 'FAIL HW-01' end
   from public.meters where code = 'HW-01' and category = 'standard' and name = 'Potable Water';
@@ -175,10 +175,10 @@ select case when count(*) = 56 and sum(closing) > 0 then 'PASS MDB readings 23-3
 select case when (select consumption from public.v_meter_daily where code = 'EN-MDB1' and reading_date = date '2026-10-24') = 4447.61 then 'PASS MDB 1 consumption on 24 Oct = 4,447.61 kWh' else 'FAIL MDB 1 consumption' end;
 insert into public.meters (code, utility, area, name, unit, category) values ('IR-01', 'water', 'Irrigation Room', 'Irrigation Water', 'm³', 'irrigation') on conflict do nothing;
 \i supabase/migrations/0018_gas_and_water_totals.sql
-select case when (select string_agg(code, ',' order by code) from public.meters where utility = 'water' and include_in_total and code !~ '^TST-') = 'HW-01,IR-01'
-  then 'PASS water: total = Potable Water + Irrigation Water' else 'FAIL water totals' end;
-select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,IR-01'
-  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Potable + Irrigation' else 'FAIL totals: ' || (select string_agg(code, ',' order by code) from public.meters where include_in_total and active) end;
+select case when (select string_agg(code, ',' order by code) from public.meters where utility = 'water' and include_in_total and code !~ '^TST-') = 'HW-01,HW-HOT,IR-01'
+  then 'PASS water: total = Cold Water + Hot Water + Irrigation Water' else 'FAIL water totals' end;
+select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,HW-HOT,IR-01'
+  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Cold + Hot + Irrigation' else 'FAIL totals: ' || (select string_agg(code, ',' order by code) from public.meters where include_in_total and active) end;
 insert into public.meters (code, utility, area, name, unit) values ('HW-01', 'water', 'Potable Water Room', 'Potable Water', 'm³') on conflict do nothing;
 \i supabase/migrations/0019_readings_1_12_nov_2026.sql
 select case when count(*) = 132 then 'PASS readings 1-12 Nov loaded (11 meters x 12 days)' else 'FAIL Nov readings: ' || count(*) end
@@ -194,5 +194,10 @@ select case when (select count(*) from public.meters where utility = 'gas' and u
 select case when (select consumption from public.v_meter_daily where code = 'GA-01' and reading_date = date '2026-11-02') = 12.17
              and (select sum(consumption) from public.v_meter_daily where code in ('GA-02','GA-03','GA-04') and reading_date = date '2026-11-02') = 12.17
   then 'PASS gas on 2 Nov = 12.17 m³, main meter = sum of the areas' else 'FAIL gas 2 Nov' end;
-select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,IR-01'
-  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Potable + Irrigation' else 'FAIL totals' end;
+select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,HW-HOT,IR-01'
+  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Cold + Hot + Irrigation' else 'FAIL totals' end;
+\i supabase/migrations/0021_cold_and_hot_water.sql
+select case when exists (select 1 from public.meters where code = 'HW-01' and name = 'Cold Water' and category = 'standard' and include_in_total)
+             and exists (select 1 from public.meters where code = 'HW-HOT' and name = 'Hot Water' and area = 'Potable Water Room' and category = 'hot_water' and include_in_total and active)
+             and (select count(*) from public.meters where code = 'HW-HOT') = 1
+  then 'PASS potable water = Cold Water (HW-01) + Hot Water (HW-HOT, ready for readings)' else 'FAIL cold/hot water' end;

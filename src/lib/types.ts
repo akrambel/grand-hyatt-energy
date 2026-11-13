@@ -27,7 +27,7 @@ export type MeterCategory = 'standard' | 'hot_water' | 'irrigation';
 
 export const METER_CATEGORIES: readonly MeterCategory[] = ['standard', 'hot_water', 'irrigation'];
 
-export const CATEGORY_LABEL: Record<MeterCategory, string> = { standard: 'Potable / standard', hot_water: 'Hot water', irrigation: 'Irrigation water' };
+export const CATEGORY_LABEL: Record<MeterCategory, string> = { standard: 'Cold water (potable)', hot_water: 'Hot water (potable)', irrigation: 'Irrigation water' };
 
 export interface Meter {
   id: string;

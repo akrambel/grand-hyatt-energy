@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase.ts';
 import { Link } from 'react-router-dom';
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowDown, ArrowUp, Bell, Droplets, Flame, Gauge as GaugeIcon, MapPin, PenSquare, Snowflake, Zap } from 'lucide-react';
@@ -74,6 +75,24 @@ function InkDot({ cx, cy, index, payload }: { cx?: number; cy?: number; index?: 
 }
 
 /** "20 Oct" */
+/** Latest downloaded outside temperature (Climate › Download external weather): shown while the sensor has no reading. */
+function useOutsideWeather(): { date: string; temp: number } | null {
+  const [w, setW] = useState<{ date: string; temp: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const { data } = await supabase.from('external_weather').select('weather_date, avg_temp_c').not('avg_temp_c', 'is', null)
+          .order('weather_date', { ascending: false }).limit(1);
+        const r = (data ?? [])[0] as { weather_date: string; avg_temp_c: number | string } | undefined;
+        if (alive && r) setW({ date: r.weather_date, temp: Number(r.avg_temp_c) });
+      } catch { /* no outside weather yet */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  return w;
+}
+
 const shortDate = (iso: string): string => { const { m, d } = parseISO(iso); return `${d} ${monthShortName(m)}`; };
 
 interface RoundCell {
@@ -109,6 +128,7 @@ export default function Overview() {
   const alerts = useData((s) => s.alerts);
   const devices = useData((s) => s.devices);
   const latest = useSensors((s) => s.latest);
+  const outside = useOutsideWeather();
   const canEnter = useCanEnter();
   const { byUtility, metrics, today } = usePeriodStats(period.start, period.end);
   const cost = useTotalCost(byUtility);
@@ -138,7 +158,7 @@ export default function Overview() {
   }, [totals, sel, period.start, chartEnd, daily, fy, settings.fiscalStartMonth]);
   const avgLine = daily ? selStats.avgDaily : null;
 
-  const water = useMemo(() => sections.map((s) => ({ ...s, label: s.category === 'standard' ? 'Potable' : s.label })), [sections]);
+  const water = useMemo(() => sections.map((s) => ({ ...s, label: s.category === 'standard' ? 'Cold water' : s.category === 'hot_water' ? 'Hot water' : s.label })), [sections]);
   const live = useMemo(() => Object.values(latest).sort((a, b) => (a.measured_at < b.measured_at ? 1 : -1))[0] ?? null, [latest]);
   const device = devices[0] ?? null;
   const devState = device ? deviceState(device.last_seen_at, settings.deviceOfflineMinutes) : 'never';
@@ -299,8 +319,13 @@ export default function Overview() {
             <span className="soft-chip"><i><GaugeIcon size={12} /></i>{live?.bmp280_pressure_hpa == null ? '—' : `${fmtNumber(live.bmp280_pressure_hpa, 0)} hPa`}</span>
             {device?.location && <span className="soft-chip"><i><MapPin size={12} /></i>{device.location}</span>}
           </div>
-          <ArcGauge value={ambientTemp(live)} min={10} max={40} unit="°C" />
-          <div className="g-caption">Temperature (AHT20), scale 10–40 °C</div>
+          {ambientTemp(live) === null && outside ? (<>
+            <ArcGauge value={outside.temp} min={10} max={40} unit="°C" />
+            <div className="g-caption">Outside weather (Open-Meteo), average of {shortDate(outside.date)} · until the sensor reports</div>
+          </>) : (<>
+            <ArcGauge value={ambientTemp(live)} min={10} max={40} unit="°C" />
+            <div className="g-caption">Temperature (AHT20), scale 10–40 °C</div>
+          </>)}
         </div>
       </div>
 
