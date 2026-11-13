@@ -175,11 +175,24 @@ select case when count(*) = 56 and sum(closing) > 0 then 'PASS MDB readings 23-3
 select case when (select consumption from public.v_meter_daily where code = 'EN-MDB1' and reading_date = date '2026-10-24') = 4447.61 then 'PASS MDB 1 consumption on 24 Oct = 4,447.61 kWh' else 'FAIL MDB 1 consumption' end;
 insert into public.meters (code, utility, area, name, unit, category) values ('IR-01', 'water', 'Irrigation Room', 'Irrigation Water', 'm³', 'irrigation') on conflict do nothing;
 \i supabase/migrations/0018_gas_and_water_totals.sql
-select case when (select count(*) from public.meters where utility = 'gas' and include_in_total) = 1
-             and exists (select 1 from public.meters where code = 'GA-01' and include_in_total and not in_area_chart)
-             and (select count(*) from public.meters where code ~ '^GA-0[2-9]$' and not include_in_total and in_area_chart) = 8
-  then 'PASS gas: LPG Main Gas Meter is the total, the 8 kitchen meters make up the area chart' else 'FAIL gas totals' end;
 select case when (select string_agg(code, ',' order by code) from public.meters where utility = 'water' and include_in_total and code !~ '^TST-') = 'HW-01,IR-01'
   then 'PASS water: total = Potable Water + Irrigation Water' else 'FAIL water totals' end;
 select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,IR-01'
   then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Potable + Irrigation' else 'FAIL totals: ' || (select string_agg(code, ',' order by code) from public.meters where include_in_total and active) end;
+insert into public.meters (code, utility, area, name, unit) values ('HW-01', 'water', 'Potable Water Room', 'Potable Water', 'm³') on conflict do nothing;
+\i supabase/migrations/0019_readings_1_12_nov_2026.sql
+select case when count(*) = 132 then 'PASS readings 1-12 Nov loaded (11 meters x 12 days)' else 'FAIL Nov readings: ' || count(*) end
+  from public.readings r join public.meters m on m.id = r.meter_id
+ where r.reading_date between date '2026-11-01' and date '2026-11-12' and m.code in ('EN-MAIN','EN-MDB1','EN-MDB2','EN-MDB3','EN-MDB4','EN-MDB5','EN-MDB6','EN-MDB7','HW-01','IR-01','CW-ETS');
+select case when (select consumption from public.v_meter_daily where code = 'EN-MAIN' and reading_date = date '2026-11-02') = 30152.35
+  then 'PASS main meter consumption on 2 Nov = 30,152.35 kWh (= sum of the MDBs)' else 'FAIL main meter 2 Nov' end;
+\i supabase/migrations/0020_gas_outlets_nov_2026.sql
+select case when (select count(*) from public.meters where utility = 'gas' and unit = 'm³') = 9
+             and exists (select 1 from public.meters where code = 'GA-01' and include_in_total and counted_from is null and counted_until is null and not in_area_chart)
+             and (select count(*) from public.meters where code ~ '^GA-0[2-9]$' and not include_in_total and in_area_chart) = 8
+  then 'PASS gas: m³; LPG Main Gas Meter is the total, the area meters make up the area chart' else 'FAIL gas totals' end;
+select case when (select consumption from public.v_meter_daily where code = 'GA-01' and reading_date = date '2026-11-02') = 12.17
+             and (select sum(consumption) from public.v_meter_daily where code in ('GA-02','GA-03','GA-04') and reading_date = date '2026-11-02') = 12.17
+  then 'PASS gas on 2 Nov = 12.17 m³, main meter = sum of the areas' else 'FAIL gas 2 Nov' end;
+select case when (select string_agg(code, ',' order by code) from public.meters where include_in_total and active and code !~ '^TST-') = 'CW-ETS,EN-MAIN,GA-01,HW-01,IR-01'
+  then 'PASS one total per utility: Main incomer, ETS Room, LPG Main Gas Meter, Potable + Irrigation' else 'FAIL totals' end;
