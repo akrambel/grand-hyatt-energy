@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_SITE, WEATHER_EVENT } from '../lib/weatherSync.ts';
 import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts';
 import { CloudDownload, Save } from 'lucide-react';
 import { useData, saveMetric } from '../store/data.ts';
@@ -42,6 +43,7 @@ export default function Climate() {
     } catch (e) { notify.warning('Some climate sources could not be loaded', friendlyError(e)); }
   }, [period.start, period.end]);
   useEffect(() => { void loadExternal(); }, [loadExternal]);
+  useEffect(() => { const again = () => { void loadExternal(); }; window.addEventListener(WEATHER_EVENT, again); return () => window.removeEventListener(WEATHER_EVENT, again); }, [loadExternal]);
 
   const days = useMemo(() => eachDay(period.start, period.end > today ? today : period.end).map((d) => {
     const m = metricsMap.get(d); const s = sensor.get(d); const w = weather.get(d);
@@ -54,8 +56,8 @@ export default function Climate() {
   const sensorDays = days.filter((d) => d.sensor !== null).length;
 
   const fetchWeather = async () => {
-    const { latitude, longitude } = settings.site;
-    if (latitude === null || longitude === null) { notify.error('Site coordinates missing', 'Enter latitude and longitude in Administration → Settings.'); return; }
+    const latitude = settings.site.latitude ?? DEFAULT_SITE.latitude;
+    const longitude = settings.site.longitude ?? DEFAULT_SITE.longitude;
     setFetching(true);
     try {
       const end = period.end > today ? today : period.end;

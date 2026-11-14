@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase.ts';
+import { WEATHER_EVENT } from '../lib/weatherSync.ts';
 import { Link } from 'react-router-dom';
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowDown, ArrowUp, Bell, Droplets, Flame, Gauge as GaugeIcon, MapPin, PenSquare, Snowflake, Zap } from 'lucide-react';
@@ -80,15 +81,18 @@ function useOutsideWeather(): { date: string; temp: number } | null {
   const [w, setW] = useState<{ date: string; temp: number } | null>(null);
   useEffect(() => {
     let alive = true;
-    void (async () => {
+    const load = async () => {
       try {
         const { data } = await supabase.from('external_weather').select('weather_date, avg_temp_c').not('avg_temp_c', 'is', null)
           .order('weather_date', { ascending: false }).limit(1);
         const r = (data ?? [])[0] as { weather_date: string; avg_temp_c: number | string } | undefined;
         if (alive && r) setW({ date: r.weather_date, temp: Number(r.avg_temp_c) });
       } catch { /* no outside weather yet */ }
-    })();
-    return () => { alive = false; };
+    };
+    void load();
+    const again = () => { void load(); };
+    window.addEventListener(WEATHER_EVENT, again);
+    return () => { alive = false; window.removeEventListener(WEATHER_EVENT, again); };
   }, []);
   return w;
 }
@@ -321,7 +325,7 @@ export default function Overview() {
           </div>
           {ambientTemp(live) === null && outside ? (<>
             <ArcGauge value={outside.temp} min={10} max={40} unit="°C" />
-            <div className="g-caption">Outside weather (Open-Meteo), average of {shortDate(outside.date)} · until the sensor reports</div>
+            <div className="g-caption">Sensor offline · outside weather (Open-Meteo), average of {shortDate(outside.date)}</div>
           </>) : (<>
             <ArcGauge value={ambientTemp(live)} min={10} max={40} unit="°C" />
             <div className="g-caption">Temperature (AHT20), scale 10–40 °C</div>

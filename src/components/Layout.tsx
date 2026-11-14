@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Camera, FileText, Wifi, WifiOff, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, Trash2, UserCircle } from 'lucide-react';
 import { useUi, notify } from '../store/ui.ts';
-import { heartbeat, useAuth, useIsAdmin, useIsRecorder } from '../store/auth.ts';
+import { heartbeat, useAuth, useCanEnter, useIsAdmin, useIsRecorder } from '../store/auth.ts';
+import { syncOutsideWeather } from '../lib/weatherSync.ts';
 import { useData, sendOfflineReadings, showSampleData } from '../store/data.ts';
 import { isSampleMode } from '../lib/sampleData.ts';
 import { useOutbox } from '../store/outbox.ts';
@@ -334,6 +335,14 @@ export function Layout() {
     document.addEventListener('visibilitychange', beat);
     return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', beat); };
   }, [pageLabel, profileId]);
+  // Outside weather (Open-Meteo) from 3 Oct 2026, fetched automatically for the days the sensor has no data.
+  const canWriteWeather = useCanEnter();
+  const weatherSettings = useData((s) => s.settings);
+  const settingsReady = useData((s) => s.status === 'ready');
+  useEffect(() => {
+    if (!profileId || !canWriteWeather || !settingsReady || sample) return;
+    void syncOutsideWeather(weatherSettings);
+  }, [profileId, canWriteWeather, settingsReady, weatherSettings, sample]);
   const openAlerts = useData((s) => s.alerts.filter((a) => !a.resolved_at && !a.acknowledged_at).length);
 
   return (

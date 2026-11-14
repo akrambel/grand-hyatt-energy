@@ -201,3 +201,20 @@ select case when exists (select 1 from public.meters where code = 'HW-01' and na
              and exists (select 1 from public.meters where code = 'HW-HOT' and name = 'Hot Water' and area = 'Potable Water Room' and category = 'hot_water' and include_in_total and active)
              and (select count(*) from public.meters where code = 'HW-HOT') = 1
   then 'PASS potable water = Cold Water (HW-01) + Hot Water (HW-HOT, ready for readings)' else 'FAIL cold/hot water' end;
+-- 0022: a data-entry user (recorder) can store the downloaded outside weather; a read-only user cannot
+reset role;
+insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000c7') on conflict do nothing;
+insert into public.profiles(id, username, display_name, role, active) values ('00000000-0000-0000-0000-0000000000c7','wx_recorder','Weather Recorder','recorder',true) on conflict do nothing;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000c7');
+do $$ begin
+  insert into public.external_weather (weather_date, avg_temp_c, min_temp_c, max_temp_c, provider) values (date '2026-10-03', 31.2, 27.0, 35.1, 'open-meteo')
+    on conflict (weather_date) do update set avg_temp_c = excluded.avg_temp_c;
+  raise notice 'PASS weather: a recorder can store outside weather';
+exception when others then raise notice 'FAIL weather recorder: %', sqlerrm; end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000e1');
+do $$ begin
+  insert into public.external_weather (weather_date, avg_temp_c) values (date '2026-10-04', 30);
+  raise notice 'FAIL weather: a read-only user stored weather';
+exception when insufficient_privilege then raise notice 'PASS weather: a read-only user cannot store weather'; end $$;
+reset role;
